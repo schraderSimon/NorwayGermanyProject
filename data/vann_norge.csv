@@ -1,6 +1,4 @@
-12824: Elektrisitetsbalanse (MWh), etter produksjon og forbruk, måned og statistikkvariabel;;
-;;
-produksjon og forbruk;måned;Elektrisk kraft
+produksjon og forbruk;maaned;Elektrisk kraft
 01.01 Vannkraft;2015M06;10631017
 01.01 Vannkraft;2015M07;9773733
 01.01 Vannkraft;2015M08;10273233
@@ -61,4 +59,3 @@ produksjon og forbruk;måned;Elektrisk kraft
 01.01 Vannkraft;2020M03;13010771
 01.01 Vannkraft;2020M04;11616737
 01.01 Vannkraft;2020M05;11282714
-01.01 Vannkraft;2020M06;9995953
