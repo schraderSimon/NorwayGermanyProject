@@ -232,64 +232,73 @@ def constfunc(data):
 
 water_NO4_trend  = np.poly1d(np.polyfit(time_month, water_NO_4week,1))
 trend_coefs[4]=[0,np.mean(water_NO_4week)]
-
 water_NO4_season,water_NO4_season_coef = fit_seasonal(water_NO_4week-water_NO4_trend(time_month),period=13,degree=4)
 season_coefs[4]=water_NO4_season_coef
 water_NO4_residue= water_NO_4week-water_NO4_season(time_month)-water_NO4_trend(time_month)
-water_NO4_function=lambda t: water_NO4_season(t)+constfunc(water_NO_4week)(t)
+water_NO4_function=lambda t: water_NO4_season(t/4)+constfunc(water_NO_4week)(t/4)
+
+water_NO_trend  = np.poly1d(np.polyfit(time, water_NO,1))
+water_NO_season,water_NO_season_coef = fit_seasonal(water_NO-water_NO_trend(time),period=52,degree=4)
+water_NO_residue= water_NO-water_NO_season(time)-water_NO_trend(time)
+stigning=np.polyfit(time,load_NO,1)[0]#couple wind production to  energy production
+stigning=0  #make wind production constant in time
+water_NO_function=lambda t: water_NO_season(t)+np.poly1d([stigning,np.mean(water_NO)])(t)
+
+
 colors=["cyan","black","green","red","blue","orange"]
+def plot_timeseries():
+    plt.plot(time,wind_NO,label="wind NO",color="cyan")
+    plt.plot(time,wind_NO_function(time),"--",color="cyan")
+    plt.plot(time,wind_DE,label="wind DE",color="black")
+    plt.plot(time,wind_DE_function(time),"--",color="black")
+    plt.plot(time,load_NO,label="load NO",color="green")
+    plt.plot(time,load_NO_function(time),"--",color="green")
+    plt.plot(time,load_DE,label="load DE",color="red")
+    plt.plot(time,load_DE_function(time),"--",color="red")
+    plt.plot(time,solar_DE,label="solar DE",color="orange")
+    plt.plot(time,solar_DE_function(time),"--",color="orange")
+    plt.plot(time_month*4,water_NO_4week,label="water NO",color="blue")
+    plt.plot(time,water_NO4_function(time),"--",color="blue")
 
-plt.plot(time,wind_NO,label="wind NO",color="cyan")
-plt.plot(time,wind_NO_function(time),"--",color="cyan")
-plt.plot(time,wind_DE,label="wind DE",color="black")
-plt.plot(time,wind_DE_function(time),"--",color="black")
-plt.plot(time,load_NO,label="load NO",color="green")
-plt.plot(time,load_NO_function(time),"--",color="green")
-plt.plot(time,load_DE,label="load DE",color="red")
-plt.plot(time,load_DE_function(time),"--",color="red")
-plt.plot(time,solar_DE,label="solar DE",color="orange")
-plt.plot(time,solar_DE_function(time),"--",color="orange")
-plt.plot(time_month*4,water_NO_4week,label="water NO",color="blue")
-plt.plot(time_month*4,water_NO4_function(time_month),"--",color="blue")
+    plt.xlabel("week")
+    if logarithm:
+        plt.ylabel("log(MW)")
+    else:
+        plt.ylabel("MW")
+    plt.legend()
+    if logarithm:
+        plt.savefig("../graphs/time_series_electricity_data_log.pdf")
+    else:
+        plt.savefig("../graphs/time_series_electricity_data.pdf")
+    plt.show()
+plot_timeseries()
+def plot_residues():
+    fig, axs = plt.subplots(3, 1,figsize=(10,10))
+    for i in range(3):
+            axs[i].set_xlabel("week")
+            axs[i].set_ylabel("residual")
 
-plt.xlabel("week")
-if logarithm:
-    plt.ylabel("log(MW)")
-else:
-    plt.ylabel("MW")
-plt.legend()
-if logarithm:
-    plt.savefig("../graphs/time_series_electricity_data_log.pdf")
-else:
-    plt.savefig("../graphs/time_series_electricity_data.pdf")
-plt.show()
+    axs[0].plot(time,wind_NO_residue,label="NO")
+    axs[0].set_title('Wind')
+    axs[0].plot(time,wind_DE_residue,label="DE")
+    axs[0].legend()
 
-fig, axs = plt.subplots(3, 1,figsize=(10,10))
-for i in range(3):
-        axs[i].set_xlabel("week")
-        axs[i].set_ylabel("residual")
+    axs[1].plot(time,load_NO_residue,label="NO")
+    axs[1].plot(time,load_DE_residue,label="DE")
+    axs[1].set_title('Load')
+    axs[1].legend()
 
-axs[0].plot(time,wind_NO_residue,label="NO")
-axs[0].set_title('Wind')
-axs[0].plot(time,wind_DE_residue,label="DE")
-axs[0].legend()
+    axs[2].plot(time_month*4,water_NO4_residue,"o",label="water NO")
+    axs[2].plot(time,solar_DE_residue,label="solar DE")
+    axs[2].set_title('Water/solar')
+    axs[2].legend()
 
-axs[1].plot(time,load_NO_residue,label="NO")
-axs[1].plot(time,load_DE_residue,label="DE")
-axs[1].set_title('Load')
-axs[1].legend()
-
-axs[2].plot(time_month*4,water_NO4_residue,"o",label="water NO")
-axs[2].plot(time,solar_DE_residue,label="solar DE")
-axs[2].set_title('Water/solar')
-axs[2].legend()
-
-plt.tight_layout()
-if logarithm:
-    plt.savefig("../graphs/residue_timeseries_log.pdf")
-else:
-    plt.savefig("../graphs/residue_timeseries.pdf")
-plt.show()
+    plt.tight_layout()
+    if logarithm:
+        plt.savefig("../graphs/residue_timeseries_log.pdf")
+    else:
+        plt.savefig("../graphs/residue_timeseries.pdf")
+    plt.show()
 
 adf_test(wind_NO_residue)
 adf_test(wind_DE_residue)
@@ -363,34 +372,22 @@ for i in range(len(arma_models)):
     deterministic_y=deterministic_functions[i](times_future[i])
     time_series_y=arma_models[i].simulate(len(times_future[i]))
     new_data.append(np.exp(deterministic_y+time_series_y))
-for i in range(len(arma_models)):
-    if i != 4:
-        plt.plot(plot_times_future[i],new_data[i],label=order[i],color=colors[i])
-    else:
-        plt.plot(plot_times_future[i],new_data[i],"o",markersize=2,label=order[i],color=colors[i])
-plt.axvline(52*num_years,linestyle="--",color="grey",label="future line")
-plt.title("Example of a system simulated 5 years (two years in the future)")
-plt.legend(loc="upper left")
-plt.tight_layout()
-plt.xlabel("week")
-plt.ylabel("MW")
-plt.savefig("../graphs/testing_predictions.pdf")
-plt.show()
+def plot_example():
+    for i in range(len(arma_models)):
+        if i != 4:
+            plt.plot(plot_times_future[i],new_data[i],label=order[i],color=colors[i])
+        else:
+            plt.plot(plot_times_future[i],new_data[i],"o",markersize=2,label=order[i],color=colors[i])
+    plt.axvline(52*num_years,linestyle="--",color="grey",label="future line")
+    plt.title("Example of a system simulated 5 years (two years in the future)")
+    plt.legend(loc="upper left")
+    plt.tight_layout()
+    plt.xlabel("week")
+    plt.ylabel("MW")
+    plt.savefig("../graphs/testing_predictions.pdf")
+    plt.show()
 
-'''
-print(arma_mod20.params)
 
-arparams=arma_mod20.params[1:-1]
-arparams=np.r_[1,-arparams]
-maparams=[1]
-print(arparams)
-nobs=len(time_month)
-y=arma_generate_sample(arparams,maparams,nobs,scale=np.sqrt(arma_mod20.params[-1]))
-plt.plot(time,y,label="random")
-plt.plot(time,actual,label="actual",color=colors[i])
-plt.legend()
-plt.show()
-'''
 def plot_correlations():
     fig, axs = plt.subplots(3, 2,figsize=(10,10))
     for i in range(3):
@@ -437,13 +434,112 @@ from statsmodels.tsa.api import VAR
 from statsmodels.tsa.stattools import ccf
 wind_and_sun=np.array([wind_NO_residue,wind_DE_residue,solar_DE_residue]).T
 load=np.array([load_NO_residue,load_DE_residue]).T
+print(len(np.mean(load_NO_residue.reshape(-1,4),axis=1)))
 monthly_load_and_water=np.array(([np.mean(load_NO_residue.reshape(-1,4),axis=1),water_NO4_residue])).T
 df_load = pd.DataFrame(load, columns = ['Load NO',"Load DE"],index=time)
-df_sunwind=pd.DataFrame(wind_and_sun, columns = ["Wind NO",'Wind DE',"Sun DE"],index=time)
-df_NOloadwater=pd.DataFrame(monthly_load_and_water, columns = ['Load NO',"Load DE"],index=time)
-model_windsun = VAR(df_sunwind).fit(maxlags=1,ic="bic")
-model_load = VAR(df_load).fit(maxlags=3,ic="bic")
-model_NOloadwater = VAR(df_NOloadwater).fit(maxlags=1,ic="bic")
 
-model_windsun=model.fit(maxlags=1,ic="aic")
-print(results.summary())
+df_sunwind=pd.DataFrame(wind_and_sun, columns = ["Wind NO",'Wind DE',"Sun DE"],index=time)
+df_NOloadwater=pd.DataFrame(monthly_load_and_water, columns = ['Load NO',"Water NO"],index=time_month)
+model_windsun = VAR(df_sunwind).fit(maxlags=1,ic="aic")
+model_load = VAR(df_load).fit(maxlags=3,ic="aic")
+model_NOloadwater = VAR(df_NOloadwater).fit(maxlags=0,ic="aic")
+print("Wind,Wind,Sun")
+print(model_windsun.summary())
+print(model_windsun.sigma_u)
+print(model_windsun.coefs)
+
+import array_to_latex as a2l
+latex_code = a2l.to_ltx(model_windsun.coefs[0], frmt = '{:6.6f}', arraytype = 'pmatrix')
+
+print("Load,Load")
+print(model_load.summary())
+print(model_load.sigma_u)
+print(model_load.coefs)
+
+import array_to_latex as a2l
+latex_code = a2l.to_ltx(model_load.coefs[0], frmt = '{:6.6f}', arraytype = 'pmatrix')
+latex_code = a2l.to_ltx(model_load.coefs[1], frmt = '{:6.6f}', arraytype = 'pmatrix')
+latex_code = a2l.to_ltx(model_load.coefs[2], frmt = '{:6.6f}', arraytype = 'pmatrix')
+latex_code = a2l.to_ltx(model_load.sigma_u.to_numpy(), frmt = '{:6.6f}', arraytype = 'pmatrix')
+print("Load,Water")
+print(model_NOloadwater.summary())
+print(model_NOloadwater.sigma_u)
+print(model_NOloadwater.sigma_u)
+latex_code = a2l.to_ltx(model_NOloadwater.sigma_u.to_numpy()/4, frmt = '{:6.6f}', arraytype = 'pmatrix')
+
+class VARSampler:
+    def __init__(self,size,degree,coefficients,covariance_matrix,X_initial=0,seed=0):
+        self.deg=degree
+        self.size=size
+        self.coefficients=coefficients
+        self.covariance_matrix=covariance_matrix
+        self.rng=np.random.default_rng(seed)
+        if X_initial == 0:
+            self.X=np.zeros((size,degree))
+        else:
+            self.X=X_initial
+    def propagate(self,random_variable=0):
+        if isinstance(random_variable,(int,float)) and random_variable==0: #If nothing is given, create new random data
+            random_variable=self.rng.multivariate_normal(np.zeros(self.size),self.covariance_matrix)
+        X_predict=np.zeros(self.size)
+        for i in range(self.deg):
+            print(self.coefficients[i])
+            print(self.X[:,i])
+            X_predict+=self.coefficients[i]@self.X[:,i]
+        self.X=np.roll(self.X,1,axis=1)
+        self.X[:,0]=X_predict+random_variable
+        return self.X[0]
+    def sample_series(self,t=52,returnRandom=False):
+        returnX=np.zeros((self.size,t))
+        random_variables=self.rng.multivariate_normal(np.zeros(self.size),self.covariance_matrix,size=t)
+        for i in range(t):
+            self.propagate(random_variables[i])
+            returnX[:,i]=self.X[:,0]
+        if returnRandom:
+            return returnX, random_variables
+        else:
+            return returnX
+def water_sampler(load_randoms,covariance_matrix,reg_coef=0.919520,seed=123):
+    rng=np.random.default_rng(seed)
+
+    sigmawater=np.sqrt(covariance_matrix[1,1])
+    sigmaload=np.sqrt(covariance_matrix[0,0])
+    p=covariance_matrix[1,0]/(sigmawater*sigmaload)
+    own_randoms=np.zeros(len(load_randoms))
+    Xvals=np.zeros(len(load_randoms))
+    for i in range(len(load_randoms)):
+        own_randoms[i]=rng.normal(sigmawater/sigmaload*p*load_randoms[i],(1-p**2)*sigmawater**2)
+    num_months=int(len(load_randoms)/4)
+    Xvals=own_randoms
+    for i in range(1,num_months):
+        mean=np.mean(Xvals[(i-1)*4:i*4])
+        meanarr=np.array([mean]*4)
+        Xvals[i*4:(i+1)*4]+=reg_coef*meanarr
+    return Xvals
+seed=np.random.randint(0,100000)
+wind_sun=VARSampler(3,1,model_windsun.coefs,model_windsun.sigma_u.to_numpy(),seed=seed+1)
+propagationSteps=wind_sun.sample_series((num_years+2)*52)
+time=np.linspace(1,(num_years+2)*52,(num_years+2)*52)
+wind_NO_test=np.exp(propagationSteps[0]+wind_NO_function(time))
+wind_DE_test=np.exp(propagationSteps[1]+wind_DE_function(time))
+sun_DE_test=np.exp(propagationSteps[2]+solar_DE_function(time))
+loadings=VARSampler(2,3,model_load.coefs,model_load.sigma_u.to_numpy(),seed=seed+2)
+propagationSteps,loadingstrandom=loadings.sample_series((num_years+2)*52,returnRandom=True)
+load_NO_test=np.exp(propagationSteps[0]+load_NO_function(time))
+load_DE_test=np.exp(propagationSteps[1]+load_DE_function(time))
+water_test_withoutfunc=water_sampler(loadingstrandom[:,0],model_NOloadwater.sigma_u.to_numpy()/4,seed=seed+3)
+water_NO_test=np.exp(water_test_withoutfunc+water_NO_function(time))
+plt.plot(wind_NO_test,label="wind NO",color=colors[0])
+plt.plot(wind_DE_test,label="wind DE",color=colors[1])
+plt.plot(sun_DE_test,label="sun DE",color=colors[5])
+plt.plot(load_NO_test,label="load NO",color=colors[2])
+plt.plot(load_DE_test,label="load DE",color=colors[3])
+plt.plot(water_NO_test,label="water NO",color=colors[4])
+plt.axvline(52*num_years,linestyle="--",color="grey",label="future line")
+plt.title("Example of a system simulated 5 years (two years in the future)")
+plt.legend(loc="upper left")
+plt.tight_layout()
+plt.xlabel("week")
+plt.ylabel("MW")
+plt.savefig("../graphs/testing_predictions_enhanced.pdf")
+plt.show()
