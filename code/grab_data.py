@@ -1,16 +1,21 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+plt.rcParams.update({'font.size': 12})
+
 import sys
 import datetime
 from statsmodels.tsa.arima.model import ARIMA
-
+from scipy.stats import boxcox
 from statsmodels.tsa.stattools import adfuller, kpss
 from statsmodels.tsa.ar_model import ar_select_order
 import statsmodels.api as sm
 from  statsmodels.tsa.seasonal import seasonal_decompose as se_de
 from  statsmodels.tsa.seasonal import STL
 from statsmodels.tsa.arima_process import arma_generate_sample
+import warnings
+
+warnings.filterwarnings("ignore")
 
 def average_array(arr,length):
     mean=np.mean(arr.reshape(-1,length),axis=1)
@@ -19,7 +24,7 @@ def average_array(arr,length):
 def fill_nan(array):
     array_interpolated=pd.DataFrame(array).interpolate().values.ravel()
     return array_interpolated
-def adf_test(timeseries,output=False):
+def adf_test(timeseries,output=True):
 
     dftest = adfuller(timeseries, autolag='AIC')
 
@@ -31,13 +36,12 @@ def adf_test(timeseries,output=False):
         for key,value in dftest[4].items():
            dfoutput['Critical Value (%s)'%key] = value
         print (dfoutput)
-def kpss_test(timeseries):
+def kpss_test(timeseries,output=True):
 
     kpsstest = kpss(timeseries, regression='c', nlags="auto")
     kpss_output = pd.Series(kpsstest[0:3], index=['Test Statistic','p-value','Lags Used'])
     if(kpss_output["p-value"]<0.05):
         print("series is maybe not stationary")
-    return 0
     if output:
         print ('Results of KPSS Test:')
         for key,value in kpsstest[3].items():
@@ -128,32 +132,37 @@ def weekify(water_data,num_years):
                 num_days_copy[counter]-=(7-days_left)
                 water_perweek.append(appenderino)
     return water_perweek
-"""
-data=pd.read_csv("../data/time_series_60min_singleindex_old.csv")
-time=data["cet_cest_timestamp"]
-begin_year=2012; begin_month=6;begin_day=1
-end_year=2016;end_month=6;end_day=1
-num_years=end_year-begin_year
-begin_date=datetime.datetime(begin_year,begin_month,begin_day)
-end_date=datetime.datetime(end_year,end_month,end_day)
-onyear_index_start=np.where(data=="%sT00:00:00+0200"%(begin_date.strftime("%Y-%m-%d")))[0][0]
-onyear_index_end=np.where(data=="%sT00:00:00+0200"%(end_date.strftime("%Y-%m-%d")))[0][0]-num_years*24 #drop the last day of the year for simplicity reasons I guess?
-if (begin_year<=2012 and begin_month<=2):
-    onyear_index_end-=24
-if (end_year==2016 and end_month>2):
-    onyear_index_end-=24
-print("Index at: ",onyear_index_start)
-time=time[onyear_index_start:onyear_index_end]
+def four_weekify(water_data,num_years):
+    water=water_data["Elektrisk kraft"].to_numpy()
+    water_peryear=np.split(water,num_years)
+    num_days=[31,28,31,30,31,30,31,31,30,31,30,31]
+    num_days=np.roll(num_days,-(begin_month-1))
+    print(num_days)
+    water_perfourweek=[]
+    for year in range(num_years):
+        num_days_copy=np.copy(num_days)
+        counter=0
+        for fourweek in range(13):
+            if num_days_copy[counter]>=28:
+                water_perfourweek.append(water_peryear[year][counter]/(365*24/12)) #multiply by 12, divide by the number of hours in a year
+                num_days_copy[counter]-=28
+            else:
+                days_left=num_days_copy[counter]
+                appenderino=0
+                appenderino+=water_peryear[year][counter]/(365*24/12)/28*days_left
+                num_days_copy[counter]-=days_left
+                counter+=1
+                appenderino+=water_peryear[year][counter]/(365*24/12)/28*(28-days_left)
+                num_days_copy[counter]-=(28-days_left)
+                water_perfourweek.append(appenderino)
+    return water_perfourweek
 
-wind_DE=data["DE_wind_generation"][onyear_index_start:onyear_index_end].to_numpy() # Innstead of "DE_wind_capacity" which does not matter so much
-load_DE=data["DE_load_old"][onyear_index_start:onyear_index_end].to_numpy()#-12000
-solar_DE=data["DE_solar_generation"][onyear_index_start:onyear_index_end].to_numpy()
-load_NO=data["NO_load_old"][onyear_index_start:onyear_index_end].to_numpy()
-wind_NO=data["NO_wind_onshore_generation"][onyear_index_start:onyear_index_end].to_numpy() #Assuming there is no offshore wind?
-"""
 
-#time=np.linspace(1,52,52,dtype="int")
-steplength=int(sys.argv[1]) #day, multiply by 7 to get week
+steplength=168 #a week
+try:
+    steplength=int(sys.argv[1]) #168 for a week, 24 for a day
+except:
+    pass
 num_timesteps=int(num_years*52*24*7/steplength)
 time=np.linspace(1,num_timesteps,num_timesteps,dtype="int")
 
@@ -169,11 +178,14 @@ load_DE=fill_nan(load_DE)-15000
 solar_DE=fill_nan(solar_DE)
 water_NO=weekify(water_data,num_years)
 water_NO+=0.02*np.mean(water_NO) #add thermal
+time_month=np.linspace(1,int(13*num_years),int(13*num_years))
+water_NO_4week=four_weekify(water_data,num_years)
 
-logarithm=False
+
+logarithm=True
 polydeg=1
 if logarithm:
-    wind_DE,solar_DE,wind_NO,load_NO,load_DE,water_NO=np.log(wind_DE),np.log(solar_DE),np.log(wind_NO),np.log(load_NO),np.log(load_DE),np.log(water_NO)
+    wind_DE,solar_DE,wind_NO,load_NO,load_DE,water_NO,water_NO_4week=np.log(wind_DE),np.log(solar_DE),np.log(wind_NO),np.log(load_NO),np.log(load_DE),np.log(water_NO),np.log(water_NO_4week)
 
 print("Wind Norway total:%f MWh"%(np.sum(wind_NO)*steplength))
 print("Wind Germany total:%f MWh"%(np.sum(wind_DE)*steplength))
@@ -182,20 +194,7 @@ print("Solar Germany total:%f MWh"%(np.sum(solar_DE)*steplength))
 
 print("Load Germany total:%f MWh"%(np.sum(load_DE)*steplength))
 print("Load Norway total:%f MWh"%(np.sum(load_NO)*steplength))
-"""
-solar_DE_notrend=solar_DE-(solar_DE_fit(time)+3500*np.sin(time*2*np.pi/52+2*np.pi*7/52))
-#plt.plot(time,wind_NO-wind_NO_fit(time),label="wind NO")
-#plt.plot(time,wind_DE-wind_DE_fit(time),label="wind DE")
-#plt.plot(time,load_NO-load_NO_fit(time),label="load NO")
-#plt.plot(time,load_DE-load_DE_fit(time),label="load DE")
-plt.plot(time,3500*np.sin(time*2*np.pi/52+2*np.pi*7/52))
-plt.plot(time,solar_DE-solar_DE_fit(time),label="solar DE")
-plt.plot(time,solar_DE_notrend,label="solar_DE_notrend")
-plt.xlabel("week")
-plt.ylabel("MW")
-plt.legend()
-plt.show()
-"""
+
 def fit_seasonal(data_withouttrend,period=52,degree=4):
     data=data_withouttrend
     X = [i%period for i in range(0, len(data))]
@@ -203,20 +202,42 @@ def fit_seasonal(data_withouttrend,period=52,degree=4):
     function=np.poly1d(coef)
     def function_period(t):
         return function(t%period)
-    return function_period
-def remove_trend(data,time,period=52,degree_trend=1,degree_season=4):
-    trend_function=np.poly1d(np.polyfit(time, data, degree_trend))
-    season_function=fit_seasonal(data-trend_function(time))
+    return function_period, coef
+def remove_trend(data,time,period=52,degree_trend=1,degree_season=4,trend_function=0):
+    trend_coef=0
+    if trend_function == 0:
+        trend_coef=np.polyfit(time, data, degree_trend)
+        trend_function=np.poly1d(trend_coef)
+    season_function,season_coef=fit_seasonal(data-trend_function(time),degree=degree_season,period=period)
     def total_trend(t):
         return trend_function(t)+season_function(t)
     residue=data-total_trend(time)
-    return residue, total_trend
-wind_DE_residue,wind_DE_function=remove_trend(wind_DE,time)
-wind_NO_residue,wind_NO_function=remove_trend(wind_NO,time)
-load_DE_residue,load_DE_function=remove_trend(load_DE,time)
-load_NO_residue,load_NO_function=remove_trend(load_NO,time,degree_season=6)
-solar_DE_residue,solar_DE_function=remove_trend(solar_DE,time,degree_season=6)
-water_NO_residue,water_NO_function=remove_trend(water_NO,time,degree_season=4)
+    assert abs(np.mean(residue))<1e-5
+    return residue, total_trend, trend_coef,season_coef
+period=int(24*7*52/steplength)
+trend_coefs=[0,0,0,0,0,0]
+season_coefs=[0,0,0,0,0,0]
+
+wind_DE_residue,wind_DE_function,trend_coefs[1],season_coefs[1]=remove_trend(wind_DE,time,period=period)
+wind_NO_residue,wind_NO_function,trend_coefs[0],season_coefs[0]=remove_trend(wind_NO,time,period=period)
+load_DE_residue,load_DE_function,trend_coefs[3],season_coefs[3]=remove_trend(load_DE,time,period=period)
+load_NO_residue,load_NO_function,trend_coefs[2],season_coefs[2]=remove_trend(load_NO,time,degree_season=4,period=period)
+solar_DE_residue,solar_DE_function,trend_coefs[5],season_coefs[5]=remove_trend(solar_DE,time,degree_season=8,period=period)
+print(season_coefs[5])
+water_NO_residue,water_NO_function,water_NO_trend_coef,water_NO_season_coef=remove_trend(water_NO,time,degree_season=4,period=period)
+def constfunc(data):
+    def f(t):
+        return np.mean(data)
+    return f
+
+water_NO4_trend  = np.poly1d(np.polyfit(time_month, water_NO_4week,1))
+trend_coefs[4]=[0,np.mean(water_NO_4week)]
+
+water_NO4_season,water_NO4_season_coef = fit_seasonal(water_NO_4week-water_NO4_trend(time_month),period=13,degree=4)
+season_coefs[4]=water_NO4_season_coef
+water_NO4_residue= water_NO_4week-water_NO4_season(time_month)-water_NO4_trend(time_month)
+water_NO4_function=lambda t: water_NO4_season(t)+constfunc(water_NO_4week)(t)
+colors=["cyan","black","green","red","blue","orange"]
 
 plt.plot(time,wind_NO,label="wind NO",color="cyan")
 plt.plot(time,wind_NO_function(time),"--",color="cyan")
@@ -228,156 +249,201 @@ plt.plot(time,load_DE,label="load DE",color="red")
 plt.plot(time,load_DE_function(time),"--",color="red")
 plt.plot(time,solar_DE,label="solar DE",color="orange")
 plt.plot(time,solar_DE_function(time),"--",color="orange")
-plt.plot(time,water_NO,label="water NO",color="blue")
-plt.plot(time,water_NO_function(time),"--",color="blue")
+plt.plot(time_month*4,water_NO_4week,label="water NO",color="blue")
+plt.plot(time_month*4,water_NO4_function(time_month),"--",color="blue")
 
 plt.xlabel("week")
-plt.ylabel("log(MW)")
+if logarithm:
+    plt.ylabel("log(MW)")
+else:
+    plt.ylabel("MW")
 plt.legend()
-plt.savefig("../graphs/time_series_electricity_data.pdf")
+if logarithm:
+    plt.savefig("../graphs/time_series_electricity_data_log.pdf")
+else:
+    plt.savefig("../graphs/time_series_electricity_data.pdf")
 plt.show()
 
-#plt.plot(wind_NO_residue,label="Wind NO")
-#plt.plot(wind_DE_residue,label="Wind DE")
-plt.plot(load_NO_residue,label="load NO")
-#plt.plot(load_DE_residue,label="load DE")
-#plt.plot(solar_DE_residue,label="solar DE")
-#plt.plot(water_NO_residue,label="water NO")
-plt.legend()
+fig, axs = plt.subplots(3, 1,figsize=(10,10))
+for i in range(3):
+        axs[i].set_xlabel("week")
+        axs[i].set_ylabel("residual")
+
+axs[0].plot(time,wind_NO_residue,label="NO")
+axs[0].set_title('Wind')
+axs[0].plot(time,wind_DE_residue,label="DE")
+axs[0].legend()
+
+axs[1].plot(time,load_NO_residue,label="NO")
+axs[1].plot(time,load_DE_residue,label="DE")
+axs[1].set_title('Load')
+axs[1].legend()
+
+axs[2].plot(time_month*4,water_NO4_residue,"o",label="water NO")
+axs[2].plot(time,solar_DE_residue,label="solar DE")
+axs[2].set_title('Water/solar')
+axs[2].legend()
+
+plt.tight_layout()
+if logarithm:
+    plt.savefig("../graphs/residue_timeseries_log.pdf")
+else:
+    plt.savefig("../graphs/residue_timeseries.pdf")
 plt.show()
 
 adf_test(wind_NO_residue)
-adf_test(wind_DE_residue)#
-adf_test(load_NO_residue)#-load_NO_fit(time))
-adf_test(load_DE_residue)#-load_DE_fit(time))
-adf_test(water_NO_residue)#-water_NO_fit(time))
-adf_test(solar_DE_residue)#-solar_DE_fit(time))
-kpss_test(wind_NO_residue)
-kpss_test(wind_DE_residue)#
-kpss_test(load_NO_residue)#-load_NO_fit(time))
-kpss_test(load_DE_residue)#-load_DE_fit(time))
-kpss_test(water_NO_residue)#-water_NO_fit(time))
-kpss_test(solar_DE_residue)#-solar_DE_fit(time))
+adf_test(wind_DE_residue)
+adf_test(load_NO_residue)
+adf_test(load_DE_residue)
+adf_test(water_NO4_residue) # nonstationary in logspace (duh)
+adf_test(solar_DE_residue)
+kpss_test(wind_DE_residue)
+kpss_test(load_NO_residue)# nonstationary in logspace AND real space
+kpss_test(load_DE_residue)
+kpss_test(water_NO4_residue)
+kpss_test(solar_DE_residue)
+order=["wind NO","wind DE","load NO","load DE","water NO","solar DE"]
+deterministic_functions=[wind_NO_function,wind_DE_function,load_NO_function,load_DE_function,water_NO4_function,solar_DE_function]
+times=[time,time,time,time,time_month,time]
+future_years=2
+time_future=np.linspace(1,(num_years+future_years)*52,(num_years+future_years)*52)
+time_future_month=np.linspace(1,(num_years+future_years)*13,(num_years+future_years)*13)
+times_future=[time_future,time_future,time_future,time_future,time_future_month,time_future]
+plot_times=times; plot_times[4]*=4
+plot_times_future=times_future;plot_times_future[4]*=4
+periods=[52]*4;periods.append(13); periods.append(52)
+residues=[wind_NO_residue,wind_DE_residue,load_NO_residue,load_DE_residue,water_NO4_residue,solar_DE_residue]
+arma_models=[]
+for residue in residues:
+    try:
+        arma_model_degree=ar_select_order(residue,maxlag=3).ar_lags[-1]
+    except IndexError:
+        arma_model_degree=0
+    arma_models.append(ARIMA(residue,order=(arma_model_degree,0,0)).fit())
+    print(len(residue),len(arma_models[-1].resid))
+print("Trend coefficients")
+for i in range(len(order)):
+    print("\\item %s: $T(t)=%ft+%f$ \\\\"%(order[i],trend_coefs[i][0],trend_coefs[i][1]))
+print("Seasonal coefficients")
+print("Time series &",end="")
+for j in range(8,0,-1):
+        print(" $a_%d$& "%j,end="")
+print(" $a_0$ \\\\ \hline")
 
-
-actual=load_DE_residue
-arma_mod20=ARIMA(actual,order=(2,0,0)).fit()
-print(arma_mod20.aic,arma_mod20.bic,arma_mod20.hqic)
-fit=arma_mod20.predict()
-print(arma_mod20.summary())
-plt.plot(actual,label="real data")
-plt.plot(fit,label="fit")
-plt.legend()
+for i in range(len(order)):
+    print("%s & "%order[i],end="")
+    number_coefs=len(season_coefs[i])
+    if number_coefs<9:
+        for k in range(9-number_coefs):
+            print("$0$ &",end="")
+    for j in range(0,number_coefs-1):
+        print("$%.3E$ &"%season_coefs[i][j],end="")
+    print("$%.3E$ \\\\ \\hline"%season_coefs[i][-1])
+print("stationray coeff")
+for i,arma_model in enumerate(arma_models):
+    #print(arma_model.summary())
+    #print(arma_model.params)
+    #print(arma_model.bse)
+    sigma=arma_model.params[-1]
+    sigmaerr=arma_model.bse[-1]
+    phi1,phi2,phi3=0,0,0
+    ephi1,ephi2,ephi3=0,0,0 #errors
+    if len(arma_model.params)>2:
+        phi1=arma_model.params[1]
+        ephi1=arma_model.bse[1]
+    if len(arma_model.params)>3:
+        phi2=arma_model.params[2]
+        ephi2=arma_model.bse[2]
+    if len(arma_model.params)>4:
+        phi3=arma_model.params[3]
+        ephi3=arma_model.bse[3]
+    print("%s & %f$\pm$%f & %f$\pm$%f & %f$\pm$%f & %f$\pm$ %f \\\\ \\hline"%(order[i],phi1,ephi1,phi2,ephi2,phi3,ephi3,sigma,sigmaerr))
+new_data=[]
+for i in range(len(arma_models)):
+    deterministic_y=deterministic_functions[i](times_future[i])
+    time_series_y=arma_models[i].simulate(len(times_future[i]))
+    new_data.append(np.exp(deterministic_y+time_series_y))
+for i in range(len(arma_models)):
+    if i != 4:
+        plt.plot(plot_times_future[i],new_data[i],label=order[i],color=colors[i])
+    else:
+        plt.plot(plot_times_future[i],new_data[i],"o",markersize=2,label=order[i],color=colors[i])
+plt.axvline(52*num_years,linestyle="--",color="grey",label="future line")
+plt.title("Example of a system simulated 5 years (two years in the future)")
+plt.legend(loc="upper left")
+plt.tight_layout()
+plt.xlabel("week")
+plt.ylabel("MW")
+plt.savefig("../graphs/testing_predictions.pdf")
 plt.show()
 
-mod=ar_select_order(actual,maxlag=13)
-print(mod.ar_lags)
-
-#sm.graphics.tsa.plot_pacf(actual, lags=40)
-#sm.graphics.tsa.plot_acf(actual, lags=40)
-#plt.show()
-
-
-"""
-Comments to myself:
-- German wind looks like white noise to me. (as a stand alone)
-- Norwegian wind seems to be AR(1)
-- Norwegian load works as AR(1)
-- German Load works as AR(2)
-- German sun works as AR(1)
-"""
+'''
 print(arma_mod20.params)
 
 arparams=arma_mod20.params[1:-1]
 arparams=np.r_[1,-arparams]
 maparams=[1]
 print(arparams)
-nobs=len(time)
+nobs=len(time_month)
 y=arma_generate_sample(arparams,maparams,nobs,scale=np.sqrt(arma_mod20.params[-1]))
 plt.plot(time,y,label="random")
-plt.plot(time,actual,label="actual")
+plt.plot(time,actual,label="actual",color=colors[i])
 plt.legend()
 plt.show()
-sys.exit(1)
+'''
+def plot_correlations():
+    fig, axs = plt.subplots(3, 2,figsize=(10,10))
+    for i in range(3):
+        for j in range(2):
+            axs[i,j].set_xlabel("week")
+            axs[i,j].set_ylabel("residual")
+            #axs[i,j].legend()
+    axs[2,1].set_xlabel("month (4 weeks)")
 
+    axs[0,0].set_title("NO wind, DE wind")
+    axs[0,0].xcorr(arma_models[0].resid,arma_models[1].resid,maxlags=3,color="orange")
+    axs[0,0].axhline(+1.96/np.sqrt(len(wind_DE_residue)))
+    axs[0,0].axhline(-1.96/np.sqrt(len(wind_DE_residue)))
 
+    axs[0,1].set_title("NO load, DE load")
+    axs[0,1].xcorr(arma_models[2].resid,arma_models[3].resid,maxlags=3,color="orange")
+    axs[0,1].axhline(+1.96/np.sqrt(len(wind_DE_residue)))
+    axs[0,1].axhline(-1.96/np.sqrt(len(wind_DE_residue)))
 
-wind_DE_fit=np.poly1d(np.polyfit(time, wind_DE, 1))
-solar_DE_fit=np.poly1d(np.polyfit(time, solar_DE, 1))
-load_DE_fit=np.poly1d(np.polyfit(time, load_DE, 1))
-wind_NO_fit=np.poly1d(np.polyfit(time, wind_NO, 1))
-load_NO_fit=np.poly1d(np.polyfit(time, load_NO, 1))
-Wind_NO_trend,Wind_NO_seasonal,Wind_NO_resid=decompose(wind_NO-wind_NO_fit(time),period=52)
-Wind_DE_trend,Wind_DE_seasonal,Wind_DE_resid=decompose(wind_DE-wind_DE_fit(time),period=52)
-load_NO_trend,load_NO_seasonal,load_NO_resid=decompose(load_NO-load_NO_fit(time),period=52)
-load_DE_trend,load_DE_seasonal,load_DE_resid=decompose(load_DE-load_DE_fit(time),period=52)
-water_NO_trend,water_NO_seasonal,water_NO_resid=decompose(water_NO-water_NO_fit(time),period=52)
-solar_DE_trend,solar_DE_seasonal,solar_DE_resid=decompose(solar_DE-solar_DE_fit(time),period=52)
+    axs[1,0].set_title("DE wind, DE sun")
+    axs[1,0].xcorr(arma_models[1].resid,arma_models[5].resid,maxlags=3,color="orange")
+    axs[1,0].axhline(+1.96/np.sqrt(len(wind_DE_residue)))
+    axs[1,0].axhline(-1.96/np.sqrt(len(wind_DE_residue)))
 
-def plot_data(type):
-    if type=="trend":
-        plt.plot(Wind_NO_trend,label="Wind NO")
-        plt.plot(Wind_DE_trend,label="Wind DE")
-        plt.plot(load_NO_trend,label="load NO")
-        plt.plot(load_DE_trend,label="load DE")
-        plt.plot(solar_DE_trend,label="solar DE")
-        plt.plot(water_NO_trend,label="water NO")
-    elif type=="seasonal":
-        plt.plot(Wind_NO_seasonal,label="Wind NO")
-        plt.plot(Wind_DE_seasonal,label="Wind DE")
-        plt.plot(load_NO_seasonal,label="load NO")
-        plt.plot(load_DE_seasonal,label="load DE")
-        plt.plot(solar_DE_seasonal,label="solar DE")
-        plt.plot(water_NO_seasonal,label="water NO")
-    elif type=="resid":
-        plt.plot(Wind_NO_resid,label="Wind NO")
-        plt.plot(Wind_DE_resid,label="Wind DE")
-        #plt.plot(load_NO_resid,label="load NO")
-        #plt.plot(load_DE_resid,label="load DE")
-        plt.plot(solar_DE_resid,label="solar DE")
-        plt.plot(water_NO_resid,label="water NO")
-    plt.legend()
+    axs[1,1].set_title("NO wind, DE sun")
+    axs[1,1].xcorr(arma_models[0].resid,arma_models[5].resid,maxlags=3,color="orange")
+    axs[1,1].axhline(+1.96/np.sqrt(len(wind_DE_residue)))
+    axs[1,1].axhline(-1.96/np.sqrt(len(wind_DE_residue)))
+
+    axs[2,0].set_title("NO wind, NO load")
+    axs[2,0].xcorr(arma_models[1].resid,arma_models[3].resid,maxlags=3,color="orange")
+    axs[2,0].axhline(+1.96/np.sqrt(len(wind_DE_residue)))
+    axs[2,0].axhline(-1.96/np.sqrt(len(wind_DE_residue)))
+
+    axs[2,1].set_title("NO load, NO water")
+    axs[2,1].xcorr(np.mean(arma_models[2].resid.reshape(-1,4),axis=1),arma_models[4].resid,maxlags=3,color="orange")
+    axs[2,1].axhline(+1.96/np.sqrt(len(water_NO4_residue)))
+    axs[2,1].axhline(-1.96/np.sqrt(len(water_NO4_residue)))
+    plt.tight_layout()
+    plt.savefig("../graphs/residual_correlations.pdf")
     plt.show()
-plot_data("resid")
 
-adf_test(Wind_NO_resid)
-adf_test(Wind_DE_resid)#
-adf_test(load_NO_resid)#-load_NO_fit(time))
-adf_test(load_DE_resid)#-load_DE_fit(time))
-adf_test(water_NO_resid)#-water_NO_fit(time))
-adf_test(solar_DE_resid)#-solar_DE_fit(time))
-kpss_test(Wind_NO_resid)
-kpss_test(Wind_DE_resid)#
-kpss_test(load_NO_resid)#-load_NO_fit(time))
-kpss_test(load_DE_resid)#-load_DE_fit(time))
-kpss_test(water_NO_resid)#-water_NO_fit(time))
-kpss_test(solar_DE_resid)#-solar_DE_fit(time))
+from statsmodels.tsa.api import VAR
+from statsmodels.tsa.stattools import ccf
+wind_and_sun=np.array([wind_NO_residue,wind_DE_residue,solar_DE_residue]).T
+load=np.array([load_NO_residue,load_DE_residue]).T
+monthly_load_and_water=np.array(([np.mean(load_NO_residue.reshape(-1,4),axis=1),water_NO4_residue])).T
+df_load = pd.DataFrame(load, columns = ['Load NO',"Load DE"],index=time)
+df_sunwind=pd.DataFrame(wind_and_sun, columns = ["Wind NO",'Wind DE',"Sun DE"],index=time)
+df_NOloadwater=pd.DataFrame(monthly_load_and_water, columns = ['Load NO',"Load DE"],index=time)
+model_windsun = VAR(df_sunwind).fit(maxlags=1,ic="bic")
+model_load = VAR(df_load).fit(maxlags=3,ic="bic")
+model_NOloadwater = VAR(df_NOloadwater).fit(maxlags=1,ic="bic")
 
-#solar_DE=np.exp(solar_DE)
-actual=wind_DE-wind_DE_fit(time)
-arma_mod20=ARIMA(actual,order=(3,0,0)).fit()
-print(arma_mod20.aic,arma_mod20.bic,arma_mod20.hqic)
-arma_mod20.plot_predict()
-plt.legend()
-plt.show()
-from statsmodels.tsa.ar_model import ar_select_order
-
-mod=ar_select_order(actual,maxlag=13)
-print(mod.ar_lags)
-
-import statsmodels.api as sm
-sm.graphics.tsa.plot_pacf(actual, lags=40)
-sm.graphics.tsa.plot_acf(actual, lags=40)
-plt.show()
-"""
-from pandas import Series
-series = Series(actual)
-print(series.describe())
-
-# histogram plot
-series.hist()
-plt.show()
-# histogram plot
-series.hist()
-plt.show()
-"""
+model_windsun=model.fit(maxlags=1,ic="aic")
+print(results.summary())
