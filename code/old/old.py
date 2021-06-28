@@ -331,3 +331,18 @@ import statsmodels.api as sm
 sm.graphics.tsa.plot_pacf(actual, lags=40)
 sm.graphics.tsa.plot_acf(actual, lags=40)
 plt.show()
+
+'''
+print(arma_mod20.params)
+
+arparams=arma_mod20.params[1:-1]
+arparams=np.r_[1,-arparams]
+maparams=[1]
+print(arparams)
+nobs=len(time_month)
+y=arma_generate_sample(arparams,maparams,nobs,scale=np.sqrt(arma_mod20.params[-1]))
+plt.plot(time,y,label="random")
+plt.plot(time,actual,label="actual",color=colors[i])
+plt.legend()
+plt.show()
+'''
