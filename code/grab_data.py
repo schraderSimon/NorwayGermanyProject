@@ -333,7 +333,9 @@ def plot_residues():
     else:
         plt.savefig("../graphs/residue_timeseries.pdf")
     plt.show()
-plot_residues()
+#plot_residues()
+
+
 print("Wind NO:")
 adf_test(wind_NO_residue)
 kpss_test(wind_NO_residue)
@@ -351,19 +353,32 @@ adf_test(water_NO4_residue)
 kpss_test(water_NO4_residue)
 print("Solar DE")
 adf_test(solar_DE_residue)
-
 kpss_test(solar_DE_residue)
+
 order=["wind NO","wind DE","load NO","load DE","water NO","solar DE"]
+original_series=[wind_NO,wind_DE,load_NO,load_DE,water_NO_4week,solar_DE]
 deterministic_functions=[wind_NO_function,wind_DE_function,load_NO_function,load_DE_function,water_NO4_function,solar_DE_function]
-times=[time,time,time,time,time_month,time]
+times=[time,time,time,time,time_month*4,time]
+residues=[wind_NO_residue,wind_DE_residue,load_NO_residue,load_DE_residue,water_NO4_residue,solar_DE_residue]
+periods=[52]*4;periods.append(13); periods.append(52)
+
+def test_series():
+    """Test wether the decomposition is correct"""
+    for i in [1,2,3,0,5]: #We do not expect water to be correct, as we directly modify the trend. The trend is expected to be linear.
+        assert np.all(np.abs(original_series[i]-deterministic_functions[i](times[i])-residues[i])<1e-5)
+test_series()
+
+
 future_years=2
 time_future=np.linspace(1,(num_years+future_years)*52,(num_years+future_years)*52)
 time_future_month=np.linspace(1,(num_years+future_years)*13,(num_years+future_years)*13)
 times_future=[time_future,time_future,time_future,time_future,time_future_month,time_future]
 plot_times=times; plot_times[4]*=4
 plot_times_future=times_future;plot_times_future[4]*=4
-periods=[52]*4;periods.append(13); periods.append(52)
-residues=[wind_NO_residue,wind_DE_residue,load_NO_residue,load_DE_residue,water_NO4_residue,solar_DE_residue]
+
+
+
+
 arma_models=[]
 for i,residue in enumerate(residues):
     try:
@@ -378,19 +393,21 @@ for i in range(len(order)):
     print("\\item %s: $T(t)=%ft+%f$ \\\\"%(order[i],trend_coefs[i][0],trend_coefs[i][1]))
 print("Seasonal coefficients")
 print("Time series &",end="")
-for j in range(8,0,-1):
+for j in range(6,0,-1):
         print(" $a_%d$& "%j,end="")
 print(" $a_0$ \\\\ \hline")
 
 for i in range(len(order)):
     print("%s & "%order[i],end="")
     number_coefs=len(season_coefs[i])
-    if number_coefs<9:
-        for k in range(9-number_coefs):
-            print("$0$ &",end="")
     for j in range(0,number_coefs-1):
-        print("$%.3E$ &"%season_coefs[i][j],end="")
-    print("$%.3E$ \\\\ \\hline"%season_coefs[i][-1])
+        exponent=int(np.log10(np.abs(season_coefs[i][j])))-1
+        #print("$%.3E$ &"%season_coefs[i][j],end="")
+        print("$%.2f\cdot10^{%d}$  &"%(season_coefs[i][j]/10**(exponent),exponent),end="")
+    exponent=int(np.log10(np.abs(season_coefs[i][-1])))-1
+    #print("$%.3E$ &"%season_coefs[i][j],end="")
+    print("$%.2f\cdot10^{%d}$  \\\\ \\hline"%(season_coefs[i][-1]/10**(exponent),exponent))
+    #print("$%.3E$ \\\\ \\hline"%season_coefs[i][-1])
 print("stationray coeff")
 for i,arma_model in enumerate(arma_models):
     #print(arma_model.summary())
@@ -495,7 +512,7 @@ def print_latex_tables():
     print(model_windsun.coefs)
     import array_to_latex as a2l
     latex_code = a2l.to_ltx(model_windsun.coefs[0], frmt = '{:6.6f}', arraytype = 'pmatrix')
-
+    latex_code = a2l.to_ltx(model_windsun.sigma_u.to_numpy(), frmt = '{:6.6f}', arraytype = 'pmatrix')
     print("Load,Load")
     print(model_load.summary())
     print(model_load.sigma_u)
@@ -510,8 +527,9 @@ def print_latex_tables():
     print(model_NOloadwater.summary())
     print(model_NOloadwater.sigma_u)
     print(model_NOloadwater.sigma_u)
+    latex_code = a2l.to_ltx(model_NOloadwater.sigma_u.to_numpy(), frmt = '{:6.6f}', arraytype = 'pmatrix')
     latex_code = a2l.to_ltx(model_NOloadwater.sigma_u.to_numpy()/4, frmt = '{:6.6f}', arraytype = 'pmatrix')
-
+print_latex_tables()
 
 seed=np.random.randint(0,100000)
 
