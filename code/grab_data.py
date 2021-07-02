@@ -17,6 +17,7 @@ import warnings
 from statsmodels.tsa.api import VAR
 from statsmodels.tsa.stattools import ccf
 from SamplerSystem import *
+from helper_functions import * 
 warnings.filterwarnings("ignore")
 
 def average_array(arr,length):

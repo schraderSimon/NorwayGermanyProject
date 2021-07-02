@@ -4,7 +4,6 @@ from SamplerSystem import *
 import seaborn as sns
 
 class case0:
-
     def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0):
         self.CO2_fossil_germany=710 #kg per MWh
         self.CO2_solar_germany=45
@@ -44,12 +43,12 @@ class case0:
         self.simulation_results[0]=np.exp(timeseries_wind_wind_sun[0]+self.functions[0](self.time))
         self.simulation_results[1]=np.exp(timeseries_wind_wind_sun[1]+self.functions[1](self.time))
         self.simulation_results[5]=np.exp(timeseries_wind_wind_sun[2]+self.functions[5](self.time))
-        loadings=VARSampler(2,3,coefs["load_coefs"],coefs["load_sigma"],seed=seed+1)
+        loadings=VARSampler(2,3,self.coefs["load_coefs"],self.coefs["load_sigma"],seed=seed+1)
         timeseries_loads,loadingstrandom=loadings.sample_series(self.num_steps,returnRandom=True)
-        self.simulation_results[2]=np.exp(timeseries_loads[0]+functions[2](self.time))
-        self.simulation_results[3]=np.exp(timeseries_loads[1]+functions[3](self.time))
-        water_data=water_sampler(loadingstrandom[:,0],coefs["water_sigma"],seed=seed+2)
-        self.simulation_results[4]=np.exp(water_data+functions[4](self.time))
+        self.simulation_results[2]=np.exp(timeseries_loads[0]+self.functions[2](self.time))
+        self.simulation_results[3]=np.exp(timeseries_loads[1]+self.functions[3](self.time))
+        water_data=water_sampler(loadingstrandom[:,0],self.coefs["water_sigma"],seed=seed+2)
+        self.simulation_results[4]=np.exp(water_data+self.functions[4](self.time))
 
     def simulate_n_years(self,n=1):
         self.setUpValuesOfInterest(n)
@@ -212,3 +211,81 @@ class case1(case0):
         self.import_export_balance[self.simulation_step]=balance/self.num_years
         self.norwegian_balance[self.simulation_step]=-np.sum(self.simulation_results[2]-self.simulation_results[0]-self.simulation_results[4])/self.num_years
     '''
+class case2(case0):
+        def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,delay_NOtoDE=0,delay_DEtoNO=0,mean_wind=0.431):
+            case0.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed)
+            self.delay_DEtoNO=delay_DEtoNO
+            self.delay_NOtoDE=delay_NOtoDE
+            self.mean_wind=mean_wind*1e6 #Twh
+        def setUpValuesOfInterest(self,n):
+            self.CO2=np.zeros(n)
+            self.import_export_balance=np.zeros(n)
+            self.norwegian_balance=np.zeros(n)
+        def sample(self):
+            for i in range (len(self.simulation_results)):
+                self.simulation_results[i]*=24*7 #Convert from MW to MWh
+            balance=0
+            total_NOtoDE=0
+            toNorway=np.zeros(len(self.simulation_results[0]))
+            toGermany=np.zeros(len(self.simulation_results[0]))
+            """Calculate emissions from the actual productions, before considering what is send where, assuming sending is emission-free"""
+            CO2_germany=np.sum(self.simulation_results[1])*self.CO2_wind_germany+np.sum(self.simulation_results[5])*self.CO2_solar_germany+15000*self.CO2_rest_germany
+            CO2_norway=np.sum(self.simulation_results[0])*self.CO2_wind_norway+np.sum(self.simulation_results[4])*self.CO2_water_norway
+            german_overproduction_nextstep   =-(self.simulation_results[3][-1]-(self.simulation_results[1][-1]+self.simulation_results[5][-1])) #Cheating a tiny little bit by making year circulars
+            norwegian_overproduction_nextstep=-(self.simulation_results[2][-1]-(self.simulation_results[0][-1]+self.simulation_results[4][-1]))
+            printout=False
+            for i in range(self.num_years*52):
+                german_overproduction=german_overproduction_nextstep
+                german_overproduction_nextstep=-(self.simulation_results[3][i]-(self.simulation_results[1][i]+self.simulation_results[5][i]+toGermany[i])) #load - wind - sun
+                norwegian_overproduction=norwegian_overproduction_nextstep
+                norwegian_overproduction_nextstep=-(self.simulation_results[2][i]-(self.simulation_results[0][i]+self.simulation_results[4][i]+toNorway[i])) #load - wind - water
+                norwegian_overproduction_arrivestep=norwegian_overproduction
+                german_overproduction_arrivestep=german_overproduction
+                if self.delay_DEtoNO==1:
+                    norwegian_overproduction_arrivestep=norwegian_overproduction_nextstep
+                if self.delay_NOtoDE==1:
+                    german_overproduction_arrivestep=german_overproduction_nextstep
+
+                """Check if Germany can send to Norway"""
+                if german_overproduction>0: #If Germany produces too much wind, it is reduced from Norway's next week consumption
+                    #Use as much as possible to increase Norwegian water the next step, alternatively, to decrease Norwegian load.
+                    if(german_overproduction<self.sendable_max*24*7): #If the cable is capable of sending everything
+                        toNorway[i-1+self.delay_DEtoNO]+=german_overproduction*(1-self.cable_loss) #Send German extra to Norway
+                        balance+=german_overproduction
+                    else:
+                        toNorway[i-1+self.delay_DEtoNO]+=self.sendable_max*(1-self.cable_loss)*24*7
+                        balance+=self.sendable_max*24*7
+                """Check if Norway can send to Germany"""
+                if norwegian_overproduction>0 and german_overproduction_arrivestep<=0: #If Norway has extra energy, it is reduced from Germanys this-week energy
+                    if(total_NOtoDE>=self.mean_wind):
+                        if printout:
+                            print("Done sending after week %d, simulation %d"%(i,self.simulation_step))
+                            printout=False
+                        continue
+                    left_sendable_energy=self.mean_wind-total_NOtoDE
+                    if(norwegian_overproduction<self.sendable_max*24*7): #If the cable is capable of sending (if its cable-ble, hehe)
+                        if left_sendable_energy<norwegian_overproduction:
+                            toGermany[i-1+self.delay_NOtoDE]+=left_sendable_energy*(1-self.cable_loss)
+                            balance-=left_sendable_energy
+                            total_NOtoDE+=left_sendable_energy
+                        else:
+                            toGermany[i-1+self.delay_NOtoDE]+=norwegian_overproduction*(1-self.cable_loss) #Send Norwegian extra to Germany
+                            balance-=norwegian_overproduction
+                            total_NOtoDE+=norwegian_overproduction
+                    else:
+                        if left_sendable_energy<self.sendable_max*24*7:
+                            toGermany[i-1+self.delay_NOtoDE]+=left_sendable_energy*(1-self.cable_loss)
+                            balance-=left_sendable_energy
+                            total_NOtoDE+=left_sendable_energy
+                        else:
+                            toGermany[i-1+self.delay_NOtoDE]+=self.sendable_max*(1-self.cable_loss)*24*7
+                            balance-=self.sendable_max*24*7
+                            total_NOtoDE+=self.sendable_max*24*7
+            """Optional - 'load' remaining water into next day - but I guess it's more reasonable to "let it go to waste" otherwise whats the purpose of the time series """
+            green_germany=self.simulation_results[1]+self.simulation_results[5]
+            burns_germany=self.simulation_results[3]-green_germany+np.roll(toNorway,-self.delay_DEtoNO)-toGermany
+            burns_germany=burns_germany.clip(min=0) #negative numbers are ignored
+            CO2_germany+=np.sum(burns_germany)*self.CO2_fossil_germany
+            self.CO2[self.simulation_step]=(CO2_germany)/self.num_years
+            self.import_export_balance[self.simulation_step]=balance/self.num_years
+            self.norwegian_balance[self.simulation_step]=np.sum(toNorway-toGermany-self.simulation_results[2]+self.simulation_results[0]+self.simulation_results[4])/self.num_years
