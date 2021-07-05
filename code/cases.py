@@ -11,7 +11,8 @@ class case0:
         self.CO2_wind_norway=11
         self.CO2_water_norway=18.5
         self.CO2_rest_germany=(12.6*12+9.4*43+3.8*18.5)/(12.6+9.4+3.8)
-        self.CO2_platforms=480 #kg per MWh
+        self.CO2_platforms_good=480 #kg per MWh
+        self.CO2_platforms_bad=333
         self.sendable_max=1400 # Cable's load in MW
         self.cable_loss=0.05
         self.coefs=coefs
@@ -95,8 +96,8 @@ class case0:
         burns_germany=burns_germany.clip(min=0)
         CO2_germany=15000*self.CO2_rest_germany+np.sum(burns_germany)*self.CO2_fossil_germany \
         +np.sum(self.simulation_results[1])*self.CO2_wind_germany+np.sum(self.simulation_results[5])*self.CO2_solar_germany
-        CO2_norway=np.sum(self.simulation_results[0])*self.CO2_wind_norway+np.sum(self.simulation_results[4])*self.CO2_water_norway
-        self.CO2[self.simulation_step]=(CO2_germany)/self.num_years
+        CO2_norway=np.sum(self.simulation_results[0])*self.CO2_wind_norway+np.sum(self.simulation_results[4])*self.CO2_water_norway+13*1e9
+        self.CO2[self.simulation_step]=(CO2_germany+CO2_norway)/self.num_years
         self.norwegian_balance[self.simulation_step]=-np.sum(self.simulation_results[2]-self.simulation_results[0]-self.simulation_results[4])/self.num_years
         self.wind_surplus[self.simulation_step]=wind_surplus
         self.wind_toNorway[self.simulation_step]=wind_toNorway
@@ -104,7 +105,6 @@ class case0:
         return self.CO2
 
 class case1(case0):
-    """Idea: We cannot _store_ water, but we can keep German water for 'one week'"""
     def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,delay_NOtoDE=0,delay_DEtoNO=0):
         case0.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed)
         self.delay_DEtoNO=delay_DEtoNO
@@ -114,178 +114,326 @@ class case1(case0):
         self.CO2=np.zeros(n)
         self.import_export_balance=np.zeros(n)
         self.norwegian_balance=np.zeros(n)
+        self.num_days_DEtoNO=np.zeros(n)
+        self.num_days_NOtoDE=np.zeros(n)
     def sample(self):
         for i in range (len(self.simulation_results)):
             self.simulation_results[i]*=24*7 #Convert from MW to MWh
         balance=0
+        num_days_DEtoNO=0
+        num_days_NOtoDE=0
         toNorway=np.zeros(len(self.simulation_results[0]))
         toGermany=np.zeros(len(self.simulation_results[0]))
         """Calculate emissions from the actual productions, before considering what is send where, assuming sending is emission-free"""
         CO2_germany=np.sum(self.simulation_results[1])*self.CO2_wind_germany+np.sum(self.simulation_results[5])*self.CO2_solar_germany+15000*self.CO2_rest_germany
-        CO2_norway=np.sum(self.simulation_results[0])*self.CO2_wind_norway+np.sum(self.simulation_results[4])*self.CO2_water_norway
-        german_overproduction_nextstep   =-(self.simulation_results[3][-1]-(self.simulation_results[1][-1]+self.simulation_results[5][-1])) #Cheating a tiny little bit by making year circulars
-        norwegian_overproduction_nextstep=-(self.simulation_results[2][-1]-(self.simulation_results[0][-1]+self.simulation_results[4][-1]))
-        for i in range(self.num_years*52):
-            german_overproduction=german_overproduction_nextstep
-            german_overproduction_nextstep=-(self.simulation_results[3][i]-(self.simulation_results[1][i]+self.simulation_results[5][i]+toGermany[i])) #load - wind - sun
-            norwegian_overproduction=norwegian_overproduction_nextstep
-            norwegian_overproduction_nextstep=-(self.simulation_results[2][i]-(self.simulation_results[0][i]+self.simulation_results[4][i]+toNorway[i])) #load - wind - water
-            norwegian_overproduction_arrivestep=norwegian_overproduction
-            german_overproduction_arrivestep=german_overproduction
-            if self.delay_DEtoNO==1:
-                norwegian_overproduction_arrivestep=norwegian_overproduction_nextstep
-            if self.delay_NOtoDE==1:
-                german_overproduction_arrivestep=german_overproduction_nextstep
+        CO2_norway=np.sum(self.simulation_results[0])*self.CO2_wind_norway+np.sum(self.simulation_results[4])*self.CO2_water_norway+13*1e9
 
+        for i in range(self.num_years*52):
+            norwegian_overproduction=-(self.simulation_results[2][i]-(self.simulation_results[0][i]+self.simulation_results[4][i]))
+            german_overproduction=-(self.simulation_results[3][i]-(self.simulation_results[1][i]+self.simulation_results[5][i]))
             """Check if Germany can send to Norway"""
             if german_overproduction>0: #If Germany produces too much wind, it is reduced from Norway's next week consumption
                 #Use as much as possible to increase Norwegian water the next step, alternatively, to decrease Norwegian load.
+                num_days_DEtoNO+=1
                 if(german_overproduction<self.sendable_max*24*7): #If the cable is capable of sending everything
-                    toNorway[i-1+self.delay_DEtoNO]+=german_overproduction*(1-self.cable_loss) #Send German extra to Norway
+                    toNorway[i]+=german_overproduction*(1-self.cable_loss) #Send German extra to Norway
                     balance+=german_overproduction
                 else:
-                    toNorway[i-1+self.delay_DEtoNO]+=self.sendable_max*(1-self.cable_loss)*24*7
+                    toNorway[i]+=self.sendable_max*(1-self.cable_loss)*24*7
                     balance+=self.sendable_max*24*7
-            """Check if Norway can send to Germany"""
-            if norwegian_overproduction>0 and german_overproduction_arrivestep<=0: #If Norway has extra energy, it is reduced from Germanys this-week energy
-                #Use as much as possible to make German energy green
-                if(norwegian_overproduction<self.sendable_max*24*7): #If the cable is capable of sending (if its cable-ble, hehe)
-                    toGermany[i-1+self.delay_NOtoDE]+=norwegian_overproduction*(1-self.cable_loss) #Send Norwegian extra to Germany
-                    balance-=norwegian_overproduction
-                else:
-                    toGermany[i-1+self.delay_NOtoDE]+=self.sendable_max*(1-self.cable_loss)*24*7
-                    balance-=self.sendable_max*24*7
-        """Optional - 'load' remaining water into next day - but I guess it's more reasonable to "let it go to waste" otherwise whats the purpose of the time series """
+            if norwegian_overproduction>0 and german_overproduction<=0:
+                if norwegian_overproduction<=-german_overproduction:
+                    #Norway overproduces less than what Germany underproduces that day - this distinction only plays a role on same-day sending!
+                    num_days_NOtoDE+=1
+                    if(norwegian_overproduction<self.sendable_max*24*7): #If the cable is capable of sending (if its cable-ble, hehe)
+                        toGermany[i]+=norwegian_overproduction*(1-self.cable_loss) #Send Norwegian extra to Germany
+                        balance-=norwegian_overproduction
+                    else:
+                        toGermany[i]+=self.sendable_max*(1-self.cable_loss)*24*7
+                        balance-=self.sendable_max*24*7
+                elif norwegian_overproduction>-german_overproduction:
+                    #Norway overproduces more than what Germany underproduces that day - this only plays a role on same-day sending!
+                    num_days_NOtoDE+=1
+                    sendable=-german_overproduction
+                    if(sendable<self.sendable_max*24*7): #If the cable is capable of sending (if its cable-ble, hehe)
+                        toGermany[i]+=sendable*(1-self.cable_loss) #Send Norwegian extra to Germany
+                        balance-=sendable
+                    else:
+                        toGermany[i]+=self.sendable_max*(1-self.cable_loss)*24*7
+                        balance-=self.sendable_max*24*7
+
         green_germany=self.simulation_results[1]+self.simulation_results[5]
         burns_germany=self.simulation_results[3]-green_germany+np.roll(toNorway,-self.delay_DEtoNO)-toGermany
         burns_germany=burns_germany.clip(min=0) #negative numbers are ignored
         CO2_germany+=np.sum(burns_germany)*self.CO2_fossil_germany
-        self.CO2[self.simulation_step]=(CO2_germany)/self.num_years
+        self.CO2[self.simulation_step]=(CO2_germany+CO2_norway)/self.num_years
         self.import_export_balance[self.simulation_step]=balance/self.num_years
         self.norwegian_balance[self.simulation_step]=np.sum(toNorway-toGermany-self.simulation_results[2]+self.simulation_results[0]+self.simulation_results[4])/self.num_years
-    '''
-    def sample_old(self):
+        self.num_days_DEtoNO[self.simulation_step]=num_days_DEtoNO
+        self.num_days_NOtoDE[self.simulation_step]=num_days_NOtoDE
+class case1_delay1(case0):
+    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,delay_NOtoDE=1,delay_DEtoNO=1):
+        case0.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed)
+        self.delay_DEtoNO=delay_DEtoNO
+        self.delay_NOtoDE=delay_NOtoDE
+
+    def setUpValuesOfInterest(self,n):
+        self.CO2=np.zeros(n)
+        self.import_export_balance=np.zeros(n)
+        self.norwegian_balance=np.zeros(n)
+        self.num_days_DEtoNO=np.zeros(n)
+        self.num_days_NOtoDE=np.zeros(n)
+    def sample(self):
         for i in range (len(self.simulation_results)):
             self.simulation_results[i]*=24*7 #Convert from MW to MWh
         balance=0
+        num_days_DEtoNO=0
+        num_days_NOtoDE=0
+        toNorway=np.zeros(len(self.simulation_results[0])+self.delay_DEtoNO)
+        toGermany=np.zeros(len(self.simulation_results[0])+self.delay_NOtoDE)
+        """Calculate emissions from the actual productions, before considering what is send where, assuming sending is emission-free"""
         CO2_germany=np.sum(self.simulation_results[1])*self.CO2_wind_germany+np.sum(self.simulation_results[5])*self.CO2_solar_germany+15000*self.CO2_rest_germany
-        CO2_norway=np.sum(self.simulation_results[0])*self.CO2_wind_norway+np.sum(self.simulation_results[4])*self.CO2_water_norway
-        german_overproduction_nextstep   =-(self.simulation_results[3][-1]-(self.simulation_results[1][-1]+self.simulation_results[5][-1])) #Cheating a tiny little bit by making year circulars
-        norwegian_overproduction_nextstep=-(self.simulation_results[2][-1]-(self.simulation_results[0][-1]+self.simulation_results[4][-1]))
-        for i in range(self.num_years*52):
+        CO2_norway=np.sum(self.simulation_results[0])*self.CO2_wind_norway+np.sum(self.simulation_results[4])*self.CO2_water_norway+13*1e9
 
-            german_overproduction=german_overproduction_nextstep
-            german_overproduction_nextstep=-(self.simulation_results[3][i]-(self.simulation_results[1][i]+self.simulation_results[5][i])) #load - wind - sun
-            norwegian_overproduction=norwegian_overproduction_nextstep
-            norwegian_overproduction_nextstep=-(self.simulation_results[2][i]-(self.simulation_results[0][i]+self.simulation_results[4][i])) #load - wind - water
-            norwegian_overproduction_arrivestep=norwegian_overproduction
-            german_overproduction_arrivestep=german_overproduction
-            if self.delay_DEtoNO==1:
-                norwegian_overproduction_arrivestep=norwegian_overproduction_nextstep
-            if self.delay_NOtoDE==1:
-                german_overproduction_arrivestep=german_overproduction_nextstep
+        for i in range(self.num_years*52):
+            norwegian_overproduction=-(self.simulation_results[2][i]-(self.simulation_results[0][i]+self.simulation_results[4][i]))#+toNorway[i] #ignore toNorway, consider it as "independent"-ish of the elecricity production
+            german_overproduction=-(self.simulation_results[3][i]-(self.simulation_results[1][i]+self.simulation_results[5][i]))#+toGermany[i]
             """Check if Germany can send to Norway"""
             if german_overproduction>0: #If Germany produces too much wind, it is reduced from Norway's next week consumption
-                if(german_overproduction<self.sendable_max*24*7): #If the cable is capable of sending
-                    self.simulation_results[2][i-1+self.delay_DEtoNO]-=german_overproduction*(1-self.cable_loss) #Send German extra to Norway
-                    self.simulation_results[1][i-1]-=german_overproduction #remove what is send from german wind
+                num_days_DEtoNO+=1
+                if(german_overproduction<self.sendable_max*24*7): #If the cable is capable of sending everything
+                    toNorway[i+1]+=german_overproduction*(1-self.cable_loss) #Send German extra to Norway, Norway gets it the next day.
                     balance+=german_overproduction
                 else:
-                    self.simulation_results[2][i-1+self.delay_DEtoNO]-=self.sendable_max*(1-self.cable_loss)*24*7
-                    self.simulation_results[1][i-1]-=self.sendable_max*24*7
+                    toNorway[i+1]+=self.sendable_max*(1-self.cable_loss)*24*7
                     balance+=self.sendable_max*24*7
-            if norwegian_overproduction>0 and german_overproduction_arrivestep<=0: #If Norway has extra energy, it is reduced from Germanys this-week energy
+            if norwegian_overproduction>0 and german_overproduction<=0:
+                #Norway overproduces less than what Germany underproduces that day
+                num_days_NOtoDE+=1
                 if(norwegian_overproduction<self.sendable_max*24*7): #If the cable is capable of sending (if its cable-ble, hehe)
-                    self.simulation_results[3][i-1+self.delay_NOtoDE]-=norwegian_overproduction*(1-self.cable_loss) #Send Norwegian extra to Germany
+                    toGermany[i+1]+=norwegian_overproduction*(1-self.cable_loss) #Send Norwegian extra to Germany
                     balance-=norwegian_overproduction
-                    self.simulation_results[4][i-1]-=norwegian_overproduction
                 else:
-                    self.simulation_results[3][i-1+self.delay_NOtoDE]-=self.sendable_max*(1-self.cable_loss)*24*7
+                    toGermany[i+1]+=self.sendable_max*(1-self.cable_loss)*24*7
                     balance-=self.sendable_max*24*7
-                    self.simulation_results[4][i-1]-=self.sendable_max*24*7
+        toNorway=np.delete(toNorway,0)
+        toNorway=np.roll(toNorway,1)
+        toGermany=np.delete(toGermany,0)
+        toGermany=np.roll(toGermany,1)
         green_germany=self.simulation_results[1]+self.simulation_results[5]
-        burns_germany=self.simulation_results[3]-green_germany
-        burns_germany=burns_germany.clip(min=0)
+        burns_germany=self.simulation_results[3]-green_germany+np.roll(toNorway,-self.delay_DEtoNO)-toGermany #Rolling is necessary because
+        burns_germany=burns_germany.clip(min=0) #negative numbers are ignored
         CO2_germany+=np.sum(burns_germany)*self.CO2_fossil_germany
         self.CO2[self.simulation_step]=(CO2_germany+CO2_norway)/self.num_years
         self.import_export_balance[self.simulation_step]=balance/self.num_years
-        self.norwegian_balance[self.simulation_step]=-np.sum(self.simulation_results[2]-self.simulation_results[0]-self.simulation_results[4])/self.num_years
-    '''
-class case2(case0):
-        def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,delay_NOtoDE=0,delay_DEtoNO=0,mean_wind=0.431):
-            case0.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed)
-            self.delay_DEtoNO=delay_DEtoNO
-            self.delay_NOtoDE=delay_NOtoDE
-            self.mean_wind=mean_wind*1e6 #Twh
-        def setUpValuesOfInterest(self,n):
-            self.CO2=np.zeros(n)
-            self.import_export_balance=np.zeros(n)
-            self.norwegian_balance=np.zeros(n)
-        def sample(self):
-            for i in range (len(self.simulation_results)):
-                self.simulation_results[i]*=24*7 #Convert from MW to MWh
-            balance=0
-            total_NOtoDE=0
-            toNorway=np.zeros(len(self.simulation_results[0]))
-            toGermany=np.zeros(len(self.simulation_results[0]))
-            """Calculate emissions from the actual productions, before considering what is send where, assuming sending is emission-free"""
-            CO2_germany=np.sum(self.simulation_results[1])*self.CO2_wind_germany+np.sum(self.simulation_results[5])*self.CO2_solar_germany+15000*self.CO2_rest_germany
-            CO2_norway=np.sum(self.simulation_results[0])*self.CO2_wind_norway+np.sum(self.simulation_results[4])*self.CO2_water_norway
-            german_overproduction_nextstep   =-(self.simulation_results[3][-1]-(self.simulation_results[1][-1]+self.simulation_results[5][-1])) #Cheating a tiny little bit by making year circulars
-            norwegian_overproduction_nextstep=-(self.simulation_results[2][-1]-(self.simulation_results[0][-1]+self.simulation_results[4][-1]))
-            printout=False
-            for i in range(self.num_years*52):
-                german_overproduction=german_overproduction_nextstep
-                german_overproduction_nextstep=-(self.simulation_results[3][i]-(self.simulation_results[1][i]+self.simulation_results[5][i]+toGermany[i])) #load - wind - sun
-                norwegian_overproduction=norwegian_overproduction_nextstep
-                norwegian_overproduction_nextstep=-(self.simulation_results[2][i]-(self.simulation_results[0][i]+self.simulation_results[4][i]+toNorway[i])) #load - wind - water
-                norwegian_overproduction_arrivestep=norwegian_overproduction
-                german_overproduction_arrivestep=german_overproduction
-                if self.delay_DEtoNO==1:
-                    norwegian_overproduction_arrivestep=norwegian_overproduction_nextstep
-                if self.delay_NOtoDE==1:
-                    german_overproduction_arrivestep=german_overproduction_nextstep
+        self.norwegian_balance[self.simulation_step]=np.sum(toNorway-toGermany-self.simulation_results[2]+self.simulation_results[0]+self.simulation_results[4])/self.num_years
+        self.num_days_DEtoNO[self.simulation_step]=num_days_DEtoNO
+        self.num_days_NOtoDE[self.simulation_step]=num_days_NOtoDE
 
-                """Check if Germany can send to Norway"""
-                if german_overproduction>0: #If Germany produces too much wind, it is reduced from Norway's next week consumption
-                    #Use as much as possible to increase Norwegian water the next step, alternatively, to decrease Norwegian load.
-                    if(german_overproduction<self.sendable_max*24*7): #If the cable is capable of sending everything
-                        toNorway[i-1+self.delay_DEtoNO]+=german_overproduction*(1-self.cable_loss) #Send German extra to Norway
-                        balance+=german_overproduction
+class case2(case0):
+    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,delay_NOtoDE=0,delay_DEtoNO=0,mean_wind=0.431):
+        case0.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed)
+        self.delay_DEtoNO=delay_DEtoNO
+        self.delay_NOtoDE=delay_NOtoDE
+        self.mean_wind=mean_wind*1e6 #Twh
+    def setUpValuesOfInterest(self,n):
+        self.CO2=np.zeros(n)
+        self.import_export_balance=np.zeros(n)
+        self.norwegian_balance=np.zeros(n)
+    def sample(self):
+        for i in range (len(self.simulation_results)):
+            self.simulation_results[i]*=24*7 #Convert from MW to MWh
+        balance=0
+        total_NOtoDE=0
+        toNorway=np.zeros(len(self.simulation_results[0]))
+        toGermany=np.zeros(len(self.simulation_results[0]))
+        """Calculate emissions from the actual productions, before considering what is send where, assuming sending is emission-free"""
+        CO2_germany=np.sum(self.simulation_results[1])*self.CO2_wind_germany+np.sum(self.simulation_results[5])*self.CO2_solar_germany+15000*self.CO2_rest_germany
+        CO2_norway=np.sum(self.simulation_results[0])*self.CO2_wind_norway+np.sum(self.simulation_results[4])*self.CO2_water_norway+13*1e9
+        printout=False
+        for i in range(self.num_years*52):
+            norwegian_overproduction=-(self.simulation_results[2][i]-(self.simulation_results[0][i]+self.simulation_results[4][i]))
+            german_overproduction=-(self.simulation_results[3][i]-(self.simulation_results[1][i]+self.simulation_results[5][i]))
+            """Check if Germany can send to Norway"""
+            if german_overproduction>0: #If Germany produces too much wind, it is reduced from Norway's next week consumption
+                #Use as much as possible to increase Norwegian water the next step, alternatively, to decrease Norwegian load.
+                if(german_overproduction<self.sendable_max*24*7): #If the cable is capable of sending everything
+                    toNorway[i]+=german_overproduction*(1-self.cable_loss) #Send German extra to Norway
+                    balance+=german_overproduction
+                else:
+                    toNorway[i]+=self.sendable_max*(1-self.cable_loss)*24*7
+                    balance+=self.sendable_max*24*7
+            """Check if Norway can send to Germany"""
+            if norwegian_overproduction>0 and german_overproduction<0: #If Norway has extra energy, it is reduced from Germanys this-week energy
+                if(total_NOtoDE>=self.mean_wind):
+                    if printout:
+                        print("Done sending after week %d, simulation %d"%(i,self.simulation_step))
+                        printout=False
+                    continue
+                left_sendable_energy=self.mean_wind-total_NOtoDE
+                if(norwegian_overproduction<self.sendable_max*24*7): #If the cable is capable of sending (if its cable-ble, hehe)
+                    if left_sendable_energy<norwegian_overproduction:
+                        toGermany[i]+=left_sendable_energy*(1-self.cable_loss)
+                        balance-=left_sendable_energy
+                        total_NOtoDE+=left_sendable_energy
                     else:
-                        toNorway[i-1+self.delay_DEtoNO]+=self.sendable_max*(1-self.cable_loss)*24*7
-                        balance+=self.sendable_max*24*7
-                """Check if Norway can send to Germany"""
-                if norwegian_overproduction>0 and german_overproduction_arrivestep<=0: #If Norway has extra energy, it is reduced from Germanys this-week energy
-                    if(total_NOtoDE>=self.mean_wind):
-                        if printout:
-                            print("Done sending after week %d, simulation %d"%(i,self.simulation_step))
-                            printout=False
-                        continue
-                    left_sendable_energy=self.mean_wind-total_NOtoDE
-                    if(norwegian_overproduction<self.sendable_max*24*7): #If the cable is capable of sending (if its cable-ble, hehe)
-                        if left_sendable_energy<norwegian_overproduction:
-                            toGermany[i-1+self.delay_NOtoDE]+=left_sendable_energy*(1-self.cable_loss)
-                            balance-=left_sendable_energy
-                            total_NOtoDE+=left_sendable_energy
-                        else:
-                            toGermany[i-1+self.delay_NOtoDE]+=norwegian_overproduction*(1-self.cable_loss) #Send Norwegian extra to Germany
-                            balance-=norwegian_overproduction
-                            total_NOtoDE+=norwegian_overproduction
+                        toGermany[i]+=norwegian_overproduction*(1-self.cable_loss) #Send Norwegian extra to Germany
+                        balance-=norwegian_overproduction
+                        total_NOtoDE+=norwegian_overproduction
+                else:
+                    if left_sendable_energy<self.sendable_max*24*7:
+                        toGermany[i]+=left_sendable_energy*(1-self.cable_loss)
+                        balance-=left_sendable_energy
+                        total_NOtoDE+=left_sendable_energy
                     else:
-                        if left_sendable_energy<self.sendable_max*24*7:
-                            toGermany[i-1+self.delay_NOtoDE]+=left_sendable_energy*(1-self.cable_loss)
-                            balance-=left_sendable_energy
-                            total_NOtoDE+=left_sendable_energy
-                        else:
-                            toGermany[i-1+self.delay_NOtoDE]+=self.sendable_max*(1-self.cable_loss)*24*7
-                            balance-=self.sendable_max*24*7
-                            total_NOtoDE+=self.sendable_max*24*7
-            """Optional - 'load' remaining water into next day - but I guess it's more reasonable to "let it go to waste" otherwise whats the purpose of the time series """
-            green_germany=self.simulation_results[1]+self.simulation_results[5]
-            burns_germany=self.simulation_results[3]-green_germany+np.roll(toNorway,-self.delay_DEtoNO)-toGermany
-            burns_germany=burns_germany.clip(min=0) #negative numbers are ignored
-            CO2_germany+=np.sum(burns_germany)*self.CO2_fossil_germany
-            self.CO2[self.simulation_step]=(CO2_germany)/self.num_years
-            self.import_export_balance[self.simulation_step]=balance/self.num_years
-            self.norwegian_balance[self.simulation_step]=np.sum(toNorway-toGermany-self.simulation_results[2]+self.simulation_results[0]+self.simulation_results[4])/self.num_years
+                        toGermany[i]+=self.sendable_max*(1-self.cable_loss)*24*7
+                        balance-=self.sendable_max*24*7
+                        total_NOtoDE+=self.sendable_max*24*7
+        green_germany=self.simulation_results[1]+self.simulation_results[5]
+        burns_germany=self.simulation_results[3]-green_germany+np.roll(toNorway,-self.delay_DEtoNO)-toGermany
+        burns_germany=burns_germany.clip(min=0) #negative numbers are ignored
+        CO2_germany+=np.sum(burns_germany)*self.CO2_fossil_germany
+        self.CO2[self.simulation_step]=(CO2_germany+CO2_norway)/self.num_years
+        self.import_export_balance[self.simulation_step]=balance/self.num_years
+        self.norwegian_balance[self.simulation_step]=np.sum(toNorway-toGermany-self.simulation_results[2]+self.simulation_results[0]+self.simulation_results[4])/self.num_years
+class case3_1(case0):
+    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,delay_NOtoDE=0,delay_DEtoNO=0,mean_wind=0.431):
+        case0.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed)
+        self.delay_DEtoNO=delay_DEtoNO
+        self.delay_NOtoDE=delay_NOtoDE
+        self.platform_restriction=15/52*1e6 #MWh
+    def setUpValuesOfInterest(self,n):
+        self.CO2=np.zeros(n)
+        self.CO2_bad=np.zeros(n)
+        self.import_export_balance=np.zeros(n)
+        self.norwegian_balance=np.zeros(n)
+    def sample(self):
+        for i in range (len(self.simulation_results)):
+            self.simulation_results[i]*=24*7 #Convert from MW to MWh
+        balance=0
+        total_NOtoDE=0
+        toNorway=np.zeros(len(self.simulation_results[0]))
+        toPlatforms=np.zeros(len(self.simulation_results[0]))
+        toGermany=np.zeros(len(self.simulation_results[0]))
+        """Calculate emissions from the actual productions, before considering what is send where, assuming sending is emission-free"""
+        CO2_germany=np.sum(self.simulation_results[1])*self.CO2_wind_germany+np.sum(self.simulation_results[5])*self.CO2_solar_germany+15000*self.CO2_rest_germany
+        CO2_norway=np.sum(self.simulation_results[0])*self.CO2_wind_norway+np.sum(self.simulation_results[4])*self.CO2_water_norway+13*1e9
+        printout=False
+        for i in range(self.num_years*52):
+            norwegian_overproduction=-(self.simulation_results[2][i]-(self.simulation_results[0][i]+self.simulation_results[4][i]))
+            german_overproduction=-(self.simulation_results[3][i]-(self.simulation_results[1][i]+self.simulation_results[5][i]))
+            """Check if Germany can send to Norway"""
+            if german_overproduction>0: #If Germany produces too much wind, it is reduced from Norway's next week consumption
+                #Use as much as possible to increase Norwegian water the next step, alternatively, to decrease Norwegian load.
+                if(german_overproduction<self.sendable_max*24*7): #If the cable is capable of sending everything
+                    toNorway[i]+=german_overproduction*(1-self.cable_loss) #Send German extra to Norway
+                    balance+=german_overproduction
+                else:
+                    toNorway[i]+=self.sendable_max*(1-self.cable_loss)*24*7
+                    balance+=self.sendable_max*24*7
+            """Check if Norway can send to Germany"""
+            """Difference to the previous scenarios: Here, what is send from Germany can go DIRECTLY to the platforms, as the cable is only used one-way"""
+            norwegian_overproduction_withgermany=norwegian_overproduction+toNorway[i]
+            if norwegian_overproduction_withgermany>0 and norwegian_overproduction>=0: #If Norway has extra energy, it is send to the platforms
+                #Use as much as possible to make the platforms green
+                if(norwegian_overproduction_withgermany<self.platform_restriction): #If the cable is capable of sending (if its cable-ble, hehe)
+                    toPlatforms[i]+=norwegian_overproduction_withgermany #Send Norwegian extra to Germany
+                else:
+                    toPlatforms[i]+=self.platform_restriction
+            elif norwegian_overproduction_withgermany>0 and norwegian_overproduction<0: #Parts of what comes from Germany is used for the platforms, the other part is used
+                surplus=norwegian_overproduction_withgermany
+                toPlatforms[i]+=surplus
+        green_germany=self.simulation_results[1]+self.simulation_results[5]
+        burns_germany=self.simulation_results[3]-green_germany+np.roll(toNorway,-self.delay_DEtoNO)
+        burns_germany=burns_germany.clip(min=0) #negative numbers are ignored
+        CO2_germany+=np.sum(burns_germany)*self.CO2_fossil_germany
+        TWhtoplatform=np.sum(toPlatforms)
+        CO2_saved_platform_good=TWhtoplatform*self.CO2_platforms_good
+        CO2_saved_platform_bad=TWhtoplatform*self.CO2_platforms_bad
+        self.CO2_bad[self.simulation_step]=(CO2_germany+CO2_norway-CO2_saved_platform_bad)/self.num_years
+        self.CO2[self.simulation_step]=(CO2_germany+CO2_norway-CO2_saved_platform_good)/self.num_years
+        self.norwegian_balance[self.simulation_step]=np.sum(toNorway-toPlatforms-self.simulation_results[2]+self.simulation_results[0]+self.simulation_results[4])/self.num_years
+class case3_2(case0):
+    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,delay_NOtoDE=0,delay_DEtoNO=0,mean_wind=0.431,reduction=0.3333333333):
+        case0.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed)
+        self.delay_DEtoNO=delay_DEtoNO
+        self.delay_NOtoDE=delay_NOtoDE
+        self.platform_restriction=15/52*1e6 #MWh
+        self.mean_wind=mean_wind*1e6 #Twh
+        self.reduction=reduction
+    def setUpValuesOfInterest(self,n):
+        self.CO2=np.zeros(n)
+        self.CO2_bad=np.zeros(n)
+        self.import_export_balance=np.zeros(n)
+        self.norwegian_balance=np.zeros(n)
+    def sample(self):
+        reduction=self.reduction
+        for i in range (len(self.simulation_results)):
+            self.simulation_results[i]*=24*7 #Convert from MW to MWh
+        balance=0
+        total_NOtoDE=0
+        toNorway=np.zeros(len(self.simulation_results[0]))
+        toPlatforms=np.zeros(len(self.simulation_results[0]))
+        toGermany=np.zeros(len(self.simulation_results[0]))
+        """Calculate emissions from the actual productions, before considering what is send where, assuming sending is emission-free"""
+        CO2_germany=np.sum(self.simulation_results[1])*self.CO2_wind_germany+np.sum(self.simulation_results[5])*self.CO2_solar_germany+15000*self.CO2_rest_germany
+        CO2_norway=np.sum(self.simulation_results[0])*self.CO2_wind_norway+np.sum(self.simulation_results[4])*self.CO2_water_norway+13*1e9
+        printout=True
+        for i in range(self.num_years*52):
+            norwegian_overproduction=-(self.simulation_results[2][i]-(self.simulation_results[0][i]+self.simulation_results[4][i]))
+            german_overproduction=-(self.simulation_results[3][i]-(self.simulation_results[1][i]+self.simulation_results[5][i]))
+            """Check if Germany can send to Norway"""
+            if german_overproduction>0: #If Germany produces too much wind, it is reduced from Norway's next week consumption
+                #Use as much as possible to increase Norwegian water the next step, alternatively, to decrease Norwegian load.
+                if(german_overproduction<self.sendable_max*24*7): #If the cable is capable of sending everything
+                    toNorway[i]+=german_overproduction*(1-self.cable_loss) #Send German extra to Norway
+                else:
+                    toNorway[i]+=self.sendable_max*(1-self.cable_loss)*24*7
+            """Check if Norway can send to Germany"""
+            if norwegian_overproduction>0 and german_overproduction<0: #If Norway has extra energy, it is reduced from Germanys this-week energy
+                left_sendable_energy=self.mean_wind-total_NOtoDE
+                if(total_NOtoDE>=self.mean_wind):
+                    if printout:
+                        print("Done sending after week %d, simulation %d, mean wind %f"%(i,self.simulation_step,self.mean_wind))
+                        printout=False
+                elif(norwegian_overproduction<reduction*self.sendable_max*24*7): #If the cable is capable of sending (if its cable-ble, hehe)
+                    if left_sendable_energy<norwegian_overproduction:
+                        toGermany[i]+=left_sendable_energy*(1-self.cable_loss)
+                        balance-=left_sendable_energy
+                        total_NOtoDE+=left_sendable_energy
+                    else:
+                        toGermany[i]+=norwegian_overproduction*(1-self.cable_loss) #Send Norwegian extra to Germany
+                        balance-=norwegian_overproduction
+                        total_NOtoDE+=norwegian_overproduction
+                else:
+                    if left_sendable_energy<self.sendable_max*24*7*reduction:
+                        toGermany[i]+=left_sendable_energy*(1-self.cable_loss)
+                        balance-=left_sendable_energy
+                        total_NOtoDE+=left_sendable_energy
+                    else:
+                        toGermany[i]+=self.sendable_max*(1-self.cable_loss)*24*7*reduction
+                        balance-=self.sendable_max*24*7*reduction
+                        total_NOtoDE+=self.sendable_max*24*7*reduction
+            """Difference to the previous scenarios: Here, what is send from Germany can go DIRECTLY to the platforms, as the cable is only used one-way"""
+            norwegian_overproduction-=toGermany[i]
+            norwegian_overproduction_withgermany=norwegian_overproduction+toNorway[i]
+            if norwegian_overproduction_withgermany>0 and norwegian_overproduction>=0: #If Norway has extra energy, it is send to the platforms
+                #Use as much as possible to make the platforms green
+                if(norwegian_overproduction_withgermany<self.platform_restriction): #If the cable is capable of sending (if its cable-ble, hehe)
+                    toPlatforms[i]+=norwegian_overproduction_withgermany #Send Norwegian extra to Germany
+                else:
+                    toPlatforms[i]+=self.platform_restriction
+            elif norwegian_overproduction_withgermany>0 and norwegian_overproduction<0: #Parts of what comes from Germany is used for the platforms, the other part is used
+                surplus=norwegian_overproduction_withgermany
+                toPlatforms[i]+=surplus
+        green_germany=self.simulation_results[1]+self.simulation_results[5]
+        burns_germany=self.simulation_results[3]-green_germany+np.roll(toNorway,-self.delay_DEtoNO)-toGermany
+        burns_germany=burns_germany.clip(min=0) #negative numbers are ignored
+        CO2_germany+=np.sum(burns_germany)*self.CO2_fossil_germany
+
+        TWhtoplatform=np.sum(toPlatforms)
+        CO2_saved_platform_good=TWhtoplatform*self.CO2_platforms_good
+        CO2_saved_platform_bad=TWhtoplatform*self.CO2_platforms_bad
+        self.CO2_bad[self.simulation_step]=(CO2_germany+CO2_norway-CO2_saved_platform_bad)/self.num_years
+        self.CO2[self.simulation_step]=(CO2_germany+CO2_norway-CO2_saved_platform_good)/self.num_years
+        self.norwegian_balance[self.simulation_step]=np.sum(toNorway-toGermany-toPlatforms-self.simulation_results[2]+self.simulation_results[0]+self.simulation_results[4])/self.num_years
