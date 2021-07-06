@@ -11,9 +11,10 @@ periods=[52,52,52,52,13,52]
 order=["wind NO","wind DE","load NO","load DE","water NO","solar DE"]
 coefs=scipy.io.loadmat("../data/timeseries.mat")
 trend_coefs=pd.read_csv("../data/trends.csv")
-#trend_coefs["water NO"][0]=trend_coefs["load NO"][0]*4 #make water raise as high as production
+#trend_coefs["water NO"][0]=trend_coefs["load NO"][0]*2 #make water raise as fast  as production
 season_coefs=pd.read_csv("../data/season.csv")
-mean_winddict={2022:2.048,2020:0.41}
+#mean_winddict={2022:2.048,2020:0.41}
+mean_winddict={}
 functions=[]
 for i in range(len(order)):
     trend=trend_coefs[order[i]]
@@ -36,6 +37,9 @@ filename_case1_delay1="../data/case1_%d_%d_%d_%d_delay1.csv"%(start_year,num_yea
 filename_case2="../data/case2_%d_%d_%d_%d.csv"%(start_year,num_years,num_simulations,seed)
 filename_case3_1="../data/case3_1_%d_%d_%d_%d.csv"%(start_year,num_years,num_simulations,seed)
 filename_case3_2="../data/case3_2_%d_%d_%d_%d.csv"%(start_year,num_years,num_simulations,seed)
+filename_case3_3="../data/case3_3_%d_%d_%d_%d.csv"%(start_year,num_years,num_simulations,seed)
+
+filename_case4="../data/case4_%d_%d_%d_%d.csv"%(start_year,num_years,num_simulations,seed)
 
 try:
     case0_data=pd.read_csv(filename_case0)
@@ -44,10 +48,12 @@ except FileNotFoundError:
     case0_simulator=case0(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years)
     case0_simulator.simulate_n_years(n=num_simulations)
     nor_balance_0=case0_simulator.norwegian_balance/1e6
+    nor_balance_0_nowind=case0_simulator.norwegian_balance_nowind/1e6
     CO2_hist_case0=case0_simulator.get_CO2()/1e9
+    CO2_hist_case0_nowind=case0_simulator.CO2_nowind/1e9
     german_wind_surplus=case0_simulator.wind_surplus/1e6
     german_wind_toNorway=case0_simulator.wind_toNorway/1e6
-    case0_results=pd.DataFrame({"CO2":CO2_hist_case0,"Norwegian Balance":nor_balance_0,"German wind surplus":german_wind_surplus,"German wind to Norway":german_wind_toNorway})
+    case0_results=pd.DataFrame({"CO2":CO2_hist_case0,"CO2 nowind":CO2_hist_case0_nowind,"Norwegian Balance nowind":nor_balance_0_nowind,"Norwegian Balance":nor_balance_0,"German wind surplus":german_wind_surplus,"German wind to Norway":german_wind_toNorway})
     case0_results.to_csv(filename_case0)
 try:
     case1_data=pd.read_csv(filename_case1)
@@ -103,6 +109,18 @@ except FileNotFoundError:
     case3_1_results=pd.DataFrame({"CO2":CO2_hist_case3_1,"CO2 bad":CO2_bad_hist_case3_1,"Norwegian Balance":nor_balance_case3_1})
     case3_1_results.to_csv(filename_case3_1)
 try:
+    case3_3_data=pd.read_csv(filename_case3_3)
+except FileNotFoundError:
+    print("Case 3_3 not found, simulating")
+    case3_3_simulator=case3_3(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=0,delay_NOtoDE=0)
+    case3_3_simulator.simulate_n_years(n=num_simulations)
+    nor_balance_case3_3=case3_3_simulator.norwegian_balance/1e6
+    CO2_hist_case3_3=case3_3_simulator.get_CO2()/1e9
+    CO2_bad_hist_case3_3=case3_3_simulator.CO2_bad/1e9
+    exp_balance_case3_3=-case3_3_simulator.import_export_balance/1e6
+    case3_3_results=pd.DataFrame({"CO2":CO2_hist_case3_3,"CO2 bad":CO2_bad_hist_case3_3,"Norwegian Balance":nor_balance_case3_3,"Norwegian export":exp_balance_case3_3})
+    case3_3_results.to_csv(filename_case3_3)
+try:
     case3_2_data=pd.read_csv(filename_case3_2)
 except FileNotFoundError:
     print("Case 3_2 not found, simulating")
@@ -120,3 +138,15 @@ except FileNotFoundError:
     exp_balance_case3_2=-case3_2_simulator.import_export_balance/1e6
     case3_2_results=pd.DataFrame({"CO2":CO2_hist_case3_2,"CO2 bad":CO2_bad_hist_case3_2,"Norwegian Balance":nor_balance_case3_2})
     case3_2_results.to_csv(filename_case3_2)
+try:
+    case4_data=pd.read_csv(filename_case4)
+except FileNotFoundError:
+    print("Case 4 not found, simulating")
+    case4_simulator=case4(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=0,delay_NOtoDE=0)
+    case4_simulator.simulate_n_years(n=num_simulations)
+    nor_balance_case4=case4_simulator.norwegian_balance/1e6
+    CO2_hist_case4=case4_simulator.get_CO2()/1e9
+    CO2_bad_hist_case4=case4_simulator.CO2_bad/1e9
+    exp_balance_case4=-case4_simulator.import_export_balance/1e6
+    case4_results=pd.DataFrame({"CO2":CO2_hist_case4,"Norwegian Balance":nor_balance_case4,"Norwegian export":exp_balance_case4, "CO2 bad":CO2_bad_hist_case4})
+    case4_results.to_csv(filename_case4)

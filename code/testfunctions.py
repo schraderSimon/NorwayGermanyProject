@@ -9,10 +9,14 @@ def compare_cases():
     start_year=2020
     num_simulations=100
     seed=0
-    case1_simulator=case1(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=0,delay_NOtoDE=0)
-    case1_simulator.sendable_max=0
-    case0_simulator=case0(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years)
-    case0_simulator.simulate_n_years(n=num_simulations)
-    case1_simulator.simulate_n_years(n=num_simulations)
-    assert np.all(np.abs(case0_simulator.get_CO2()-case1_simulator.get_CO2())/1e9<1e-12)
+    params=[coefs,trend_coefs,season_coefs,num_years,start_year,seed,0,0]
+    cases=[case1(*params),case2(*params),case3_1(*params),case3_2(*params),case3_3(*params)]
+    for case in cases:
+        case.sendable_max=0
+        try:
+            case.platform_restriction=0
+        except:
+            pass
+        case.simulate_n_years(n=num_simulations)
+        assert np.all(np.abs(case.get_CO2()-cases[0].get_CO2())/1e9<1e-12)
 compare_cases()
