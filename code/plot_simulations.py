@@ -120,22 +120,42 @@ nor_balance_case4=case4_data["Norwegian Balance"].to_numpy()
 
 num_weeks_NOtoDE=case1_data["Days NO to DE"].to_numpy()
 num_weeks_DEtoNO=case1_data["Days DE to NO"].to_numpy()
-
+num_weeks_NOtoDE_delay1=case1_delay1_data["Days NO to DE"].to_numpy()
+num_weeks_DEtoNO_delay1=case1_delay1_data["Days DE to NO"].to_numpy()
+def boxwhisker():
+    order[5]="sun DE"
+    data=[]
+    for i in range(6):
+        data.append(case0_data[order[i]].to_numpy())
+    data=np.array(data).T
+    #data=np.log(data)
+    print(data)
+    #plt.boxplot(data,vert=False)
+    for i in range(6):
+        sns.kdeplot(data[:,i],label=order[i])
+    plt.legend()
+    plt.show()
+    order[5]="solar DE"
+boxwhisker()
 def plotstuff():
     plt.hist(num_weeks_NOtoDE,density=True,alpha=0.1,bins=30,color="red")
     plt.hist(num_weeks_DEtoNO,density=True,alpha=0.1,bins=20,color="blue")
-    sns.kdeplot(num_weeks_NOtoDE,color="red",bw_adjust=2,label="NO to DE")
-    sns.kdeplot(num_weeks_DEtoNO,color="blue",bw_adjust=2,label="DE to NO")
+    sns.kdeplot(num_weeks_NOtoDE,color="red",bw_adjust=2,label="NO to DE, delay 0")
+    sns.kdeplot(num_weeks_DEtoNO,color="blue",bw_adjust=2,label="DE to NO, delay 0")
+    plt.hist(num_weeks_NOtoDE_delay1,density=True,alpha=0.1,bins=30,color="green")
+    plt.hist(num_weeks_DEtoNO_delay1,density=True,alpha=0.1,bins=20,color="yellow")
+    sns.kdeplot(num_weeks_NOtoDE_delay1,color="green",bw_adjust=2,label="NO to DE, delay 1")
+    sns.kdeplot(num_weeks_DEtoNO_delay1,color="yellow",bw_adjust=2,label="DE to NO, delay 1")
     plt.xlabel("Number of weeks")
     plt.ylabel("Probability")
     plt.legend()
-    plt.title(r"Number of weeks exporting, n=%d, year=%d, years=%d"%(num_simulations,start_year,num_years))
+    plt.title(r"Num. weeks exporting, n=%d, year=%d, years=%d"%(num_simulations,start_year,num_years))
 
     plt.tight_layout()
     if savefile:
         plt.savefig("../graphs/Num_weeks_%d.pdf"%(start_year))
     plt.show()
-
+plotstuff()
 def plot1():
     fig, (ax2, ax1) = plt.subplots(1, 2, sharex=False, sharey=False,figsize=(12,6))
 
@@ -160,10 +180,11 @@ def plot1():
     sns.kdeplot(nor_balance_case0,label="NO el. surplus, case 0",color="red",ax=ax1)
     sns.kdeplot(exp_balance_case1,label="Norwegian el. Export, case 1",color="blue",ax=ax1)
     sns.kdeplot(nor_balance_case1,label="NO el. surplus, case 1",color="cyan",ax=ax1)
+    sns.kdeplot(nor_balance_case1_delay1,label="NO el. surplus, case 1 delay 1",color="magenta",ax=ax1)
     ax1.hist(nor_balance_case0,density=True,bins=20,alpha=0.1,color="red")#,ax=ax1)
     ax1.hist(exp_balance_case1,bins=20,density=True,alpha=0.1,color="blue")#,ax=ax1)
     ax1.hist(nor_balance_case1,bins=20,density=True,alpha=0.1,color="cyan")#,ax=ax1)
-
+    ax1.hist(nor_balance_case1_delay1,bins=20,density=True,alpha=0.1,color="magenta")
     print("Norwegian surplus case 0: %.4f±%.4f"%(np.mean(nor_balance_case0),np.std(nor_balance_case0)))
     print("Norwegian surplus case 1: %.4f±%.4f"%(np.mean(nor_balance_case1),np.std(nor_balance_case1)))
     print("Norwegian export case 1: %.4f±%.4f"%(np.mean(exp_balance_case1),np.std(exp_balance_case1)))
@@ -171,25 +192,25 @@ def plot1():
     ax1.set_xlabel("TWh")
     ax1.set_ylabel("Probability")
     ax1.legend(loc="upper left")
-    ax1.set_xlim(-5,25)
     plt.tight_layout()
     if savefile:
         plt.savefig("../graphs/case0_case1_%d.pdf"%(start_year))
     plt.show()
-    maxfit=1000
-    plt.scatter(exp_balance_case1[:maxfit],CO2_hist_case0[:maxfit]-CO2_hist_case1[:maxfit])
+    maxfit=10000
+    plt.scatter(exp_balance_case1[:maxfit],CO2_hist_case0[:maxfit]-CO2_hist_case1[:maxfit],label="Norwegian export balance")
     m,b = np.polyfit(exp_balance_case1[:maxfit], CO2_hist_case0[:maxfit]-CO2_hist_case1[:maxfit], 1)
+    print("Slope: %f g/kWh"%(m*1000))
     def f(x):
         return m*x+b
     plt.plot(exp_balance_case1[:maxfit],f(exp_balance_case1[:maxfit]),color="red")
-    plt.xlabel("Norwegian exports in TWh")
+    plt.xlabel("TWh")
     plt.ylabel(r"Million tons CO$_2$ saved")
-    #plt.legend()
+    plt.legend()
     plt.tight_layout()
     if savefile:
         plt.savefig("../graphs/case0_case1_confirm_%d.pdf"%(start_year))
     plt.show()
-#plot1()
+plot1()
 
 
 def plot2():
@@ -244,10 +265,9 @@ def plot2():
     #plt.legend()
     plt.tight_layout()
     if savefile:
-        plt.savefig("../graphs/case0_case1_confirm_%d.pdf"%(start_year))
+        plt.savefig("../graphs/case0_case2_confirm_%d.pdf"%(start_year))
     plt.show()
 plot2()
-sys.exit(1)
 def plot31():
     fig, (ax2, ax1) = plt.subplots(1, 2, sharex=False, sharey=False,figsize=(12,6))
     ax2.hist(CO2_hist_case3_1,density=True,alpha=0.1,bins=20,color="red")
@@ -276,7 +296,6 @@ def plot31():
     ax1.set_xlabel("TWh")
     ax1.set_ylabel("Probability")
     ax1.legend(loc="upper left")
-    ax1.set_xlim(-5,20)
     plt.tight_layout()
     if savefile:
         plt.savefig("../graphs/case1_case3_%d.pdf"%(start_year))
@@ -285,7 +304,7 @@ def plot31():
     print("Load Reduction with Case 3-1 compared to Case 1:  %.2f±%.2f"%(np.mean((nor_balance_case3_1-nor_balance_case1)),np.std((nor_balance_case3_1-nor_balance_case1))))
 
     plt.show()
-
+plot31()
 
 def plot32():
     fig, (ax2, ax1) = plt.subplots(1, 2, sharex=False, sharey=False,figsize=(12,6))
@@ -321,6 +340,7 @@ def plot32():
     print("Load Reduction with Case 3-2 compared to Case 3-1: %.2f±%.2f"%(np.mean((nor_balance_case3_2-nor_balance_case3_1)),np.std((nor_balance_case3_2-nor_balance_case3_1))))
 
     plt.show()
+plot32()
 def plot33():
     fig, (ax2, ax1) = plt.subplots(1, 2, sharex=False, sharey=False,figsize=(12,6))
     ax2.hist(CO2_hist_case3_1,density=True,alpha=0.1,bins=20,color="red")
@@ -355,7 +375,7 @@ def plot33():
     print("Load Reduction with Case 3-3 compared to Case 3-1: %.2f±%.2f"%(np.mean((nor_balance_case3_3-nor_balance_case3_1)),np.std((nor_balance_case3_3-nor_balance_case3_1))))
     print("Load of Case 3-3: %.2f±%.2f"%(np.mean((nor_balance_case3_3)),np.std((nor_balance_case3_3))))
     plt.show()
-
+plot33()
 
 def plot4():
     fig, (ax2, ax1) = plt.subplots(1, 2, sharex=False, sharey=False,figsize=(12,6))

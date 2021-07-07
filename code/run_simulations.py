@@ -53,7 +53,14 @@ except FileNotFoundError:
     CO2_hist_case0_nowind=case0_simulator.CO2_nowind/1e9
     german_wind_surplus=case0_simulator.wind_surplus/1e6
     german_wind_toNorway=case0_simulator.wind_toNorway/1e6
-    case0_results=pd.DataFrame({"CO2":CO2_hist_case0,"CO2 nowind":CO2_hist_case0_nowind,"Norwegian Balance nowind":nor_balance_0_nowind,"Norwegian Balance":nor_balance_0,"German wind surplus":german_wind_surplus,"German wind to Norway":german_wind_toNorway})
+    results={"CO2":CO2_hist_case0,"CO2 nowind":CO2_hist_case0_nowind,"Norwegian Balance nowind":nor_balance_0_nowind,"Norwegian Balance":nor_balance_0,"German wind surplus":german_wind_surplus,"German wind to Norway":german_wind_toNorway}
+    results["wind NO"]=case0_simulator.profiles[:,0]/1e6
+    results["wind DE"]=case0_simulator.profiles[:,1]/1e6
+    results["load NO"]=case0_simulator.profiles[:,2]/1e6
+    results["load DE"]=case0_simulator.profiles[:,3]/1e6
+    results["water NO"]=case0_simulator.profiles[:,4]/1e6
+    results["solar DE"]=case0_simulator.profiles[:,5]/1e6
+    case0_results=pd.DataFrame(results)
     case0_results.to_csv(filename_case0)
 try:
     case1_data=pd.read_csv(filename_case1)
@@ -77,7 +84,9 @@ except FileNotFoundError:
     nor_balance_1=case1_simulator.norwegian_balance/1e6
     CO2_hist_case1=case1_simulator.get_CO2()/1e9
     exp_balance_case1=-case1_simulator.import_export_balance/1e6
-    case1_results=pd.DataFrame({"CO2":CO2_hist_case1,"Norwegian Balance":nor_balance_1,"Norwegian export":exp_balance_case1})
+    DEtoNO_case1=case1_simulator.num_days_DEtoNO
+    NOtoDE_case1=case1_simulator.num_days_NOtoDE
+    case1_results=pd.DataFrame({"Days NO to DE":NOtoDE_case1, "Days DE to NO":DEtoNO_case1,"CO2":CO2_hist_case1,"Norwegian Balance":nor_balance_1,"Norwegian export":exp_balance_case1})
     case1_results.to_csv(filename_case1_delay1)
 try:
     case2_data=pd.read_csv(filename_case2)
