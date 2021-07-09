@@ -17,8 +17,9 @@ import warnings
 from statsmodels.tsa.api import VAR
 from statsmodels.tsa.stattools import ccf
 from SamplerSystem import *
-from helper_functions import * 
+from helper_functions import *
 warnings.filterwarnings("ignore")
+plt.rcParams.update({'font.size': 12, 'legend.labelspacing':0.2})
 
 def average_array(arr,length):
     """Takes an array and returns a new array of length len(arr)/length,
@@ -54,7 +55,7 @@ def kpss_test(timeseries,output=False):
     kpsstest = kpss(timeseries, regression='c', nlags="auto")
     kpss_output = pd.Series(kpsstest[0:3], index=['Test Statistic','p-value','Lags Used'])
     if(kpss_output["p-value"]<0.05):
-        print("series KPSS failed,p=%.2f"%kpss_output["p-value"])
+        print("series KPSS failed,p=%.4f"%kpss_output["p-value"])
     if output:
         print ('Results of KPSS Test:')
         for key,value in kpsstest[3].items():
@@ -299,13 +300,32 @@ def plot_timeseries():
         plt.ylabel("log(MW)")
     else:
         plt.ylabel("MW")
-    plt.legend()
+    plt.legend(loc="upper left")
+    plt.tight_layout()
     if logarithm:
         plt.savefig("../graphs/time_series_electricity_data_log.pdf")
+        plt.show()
+        plt.plot(time,np.exp(wind_NO),label="wind NO",color="cyan")
+        plt.plot(time,np.exp(wind_NO_function(time)),"--",color="cyan")
+        plt.plot(time,np.exp(wind_DE),label="wind DE",color="black")
+        plt.plot(time,np.exp(wind_DE_function(time)),"--",color="black")
+        plt.plot(time,np.exp(load_NO),label="load NO",color="green")
+        plt.plot(time,np.exp(load_NO_function(time)),"--",color="green")
+        plt.plot(time,np.exp(load_DE),label="load DE",color="red")
+        plt.plot(time,np.exp(load_DE_function(time)),"--",color="red")
+        plt.plot(time,np.exp(solar_DE),label="solar DE",color="orange")
+        plt.plot(time,np.exp(solar_DE_function(time)),"--",color="orange")
+        plt.plot(time_month*4,np.exp(water_NO_4week),label="water NO",color="blue")
+        plt.plot(time,np.exp(water_NO4_function(time)),"--",color="blue")
+        plt.legend(loc="upper left")
+        plt.tight_layout()
+        plt.ylabel("MW")
+        plt.xlabel("week")
+        plt.savefig("../graphs/time_series_electricity_data.pdf")
     else:
         plt.savefig("../graphs/time_series_electricity_data.pdf")
     plt.show()
-
+plot_timeseries()
 
 def plot_residues():
     fig, axs = plt.subplots(3, 1,figsize=(10,10))
@@ -442,7 +462,7 @@ def plot_example():
         else:
             plt.plot(plot_times_future[i],new_data[i],"o",markersize=2,label=order[i],color=colors[i])
     plt.axvline(52*num_years,linestyle="--",color="grey",label="future line")
-    plt.title("Example of a system simulated 5 years (two years in the future)")
+    plt.title("Example of a system simulated 2017-2022")
     plt.legend(loc="upper left")
     plt.tight_layout()
     plt.xlabel("week")
@@ -553,7 +573,7 @@ plt.plot(load_NO_test,label="load NO",color=colors[2])
 plt.plot(load_DE_test,label="load DE",color=colors[3])
 plt.plot(water_NO_test,label="water NO",color=colors[4])
 plt.axvline(52*num_years,linestyle="--",color="grey",label="future line")
-plt.title("Example of a system simulated 5 years (two years in the future)")
+plt.title("Example of a system simulated 2017-2022")
 plt.legend(loc="upper left")
 plt.tight_layout()
 plt.xlabel("week")

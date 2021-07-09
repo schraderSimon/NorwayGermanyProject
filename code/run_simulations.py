@@ -127,7 +127,9 @@ except FileNotFoundError:
     CO2_hist_case3_3=case3_3_simulator.get_CO2()/1e9
     CO2_bad_hist_case3_3=case3_3_simulator.CO2_bad/1e9
     exp_balance_case3_3=-case3_3_simulator.import_export_balance/1e6
-    case3_3_results=pd.DataFrame({"CO2":CO2_hist_case3_3,"CO2 bad":CO2_bad_hist_case3_3,"Norwegian Balance":nor_balance_case3_3,"Norwegian export":exp_balance_case3_3})
+    sentToGermany_3_3=case3_3_simulator.sentToGermany/1e6
+    sentToPlatforms_3_3=case3_3_simulator.sentToPlatforms/1e6
+    case3_3_results=pd.DataFrame({"CO2":CO2_hist_case3_3,"CO2 bad":CO2_bad_hist_case3_3,"Norwegian Balance":nor_balance_case3_3,"Norwegian export":exp_balance_case3_3, "Germany":sentToGermany_3_3,"Platforms":sentToPlatforms_3_3})
     case3_3_results.to_csv(filename_case3_3)
 try:
     case3_2_data=pd.read_csv(filename_case3_2)
@@ -157,5 +159,7 @@ except FileNotFoundError:
     CO2_hist_case4=case4_simulator.get_CO2()/1e9
     CO2_bad_hist_case4=case4_simulator.CO2_bad/1e9
     exp_balance_case4=-case4_simulator.import_export_balance/1e6
-    case4_results=pd.DataFrame({"CO2":CO2_hist_case4,"Norwegian Balance":nor_balance_case4,"Norwegian export":exp_balance_case4, "CO2 bad":CO2_bad_hist_case4})
+    sentToGermany=case4_simulator.sentToGermany/1e6
+    sentToPlatforms=case4_simulator.sentToPlatforms/1e6
+    case4_results=pd.DataFrame({"CO2":CO2_hist_case4,"Norwegian Balance":nor_balance_case4,"Norwegian export":exp_balance_case4, "CO2 bad":CO2_bad_hist_case4, "Germany":sentToGermany,"Platforms":sentToPlatforms})
     case4_results.to_csv(filename_case4)
