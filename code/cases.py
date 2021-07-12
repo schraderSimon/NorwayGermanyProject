@@ -2,9 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from SamplerSystem import *
 import seaborn as sns
-
+from helper_functions import *
 class case0:
-    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0):
+    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,watertype="dependent",fourier=False):
         self.CO2_fossil_germany=710 #kg per MWh
         self.CO2_solar_germany=45
         self.CO2_wind_germany=11
@@ -23,20 +23,18 @@ class case0:
         self.num_steps=num_years*52
         self.num_years=num_years
         self.start_year=start_year-2017
-        self.time=np.linspace(self.start_year*52,(self.start_year+num_years)*52,self.num_steps)
+        self.time=np.linspace(self.start_year*52,(self.start_year+num_years)*52-1,self.num_steps) #Should go from 0 to incl. 51, or from 52 to incl. 103, and so on, that's why -1
         functions=[]
         for i in range(len(self.order)):
             trend=trend_coefs[self.order[i]]
             season=season_coefs[self.order[i]]
-            functions.append(self.coefs_to_function(trend,season,period=self.periods[i]))
+            if fourier==False:
+                functions.append(coefs_to_function(trend,season,period=self.periods[i]))
+            else:
+                functions.append(fourier_coefs_to_function(trend,season,6,0,period=self.periods[i]))
         self.functions=functions
         self.CO2=[] #Co2 per simulation
-    def coefs_to_function(self,trend_coef,season_coef,period):
-        trendfunc=np.poly1d(trend_coef)
-        seasonfunc=np.poly1d(season_coef)
-        def seasonfunc_periodic(t):
-            return seasonfunc((t-1)%period)
-        return (lambda t:seasonfunc_periodic(t*period/52)+trendfunc(t*period/52))
+        self.watertype=watertype
     def simulate_one_year(self,seed):
         self.simulation_results=np.zeros((6,self.num_steps))
         wind_sun=VARSampler(3,1,self.coefs["windsun_coefs"],self.coefs["windsun_sigma"],seed=seed)
@@ -48,7 +46,7 @@ class case0:
         timeseries_loads,loadingstrandom=loadings.sample_series(self.num_steps,returnRandom=True)
         self.simulation_results[2]=np.exp(timeseries_loads[0]+self.functions[2](self.time))
         self.simulation_results[3]=np.exp(timeseries_loads[1]+self.functions[3](self.time))
-        water_data=water_sampler(loadingstrandom[:,0],self.coefs["water_sigma"],seed=seed+2)
+        water_data=water_sampler(loadingstrandom[:,0],self.coefs["water_sigma"],seed=seed+2,watertype=self.watertype)
         self.simulation_results[4]=np.exp(water_data+self.functions[4](self.time))
 
     def simulate_n_years(self,n=1):
@@ -113,11 +111,10 @@ class case0:
         return self.CO2
 
 class case1(case0):
-    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,delay_NOtoDE=0,delay_DEtoNO=0):
-        case0.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed)
+    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,watertype="dependent",delay_NOtoDE=0,delay_DEtoNO=0,fourier=False):
+        case0.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed,watertype,fourier=fourier)
         self.delay_DEtoNO=delay_DEtoNO
         self.delay_NOtoDE=delay_NOtoDE
-
     def setUpValuesOfInterest(self,n):
         self.CO2=np.zeros(n)
         self.import_export_balance=np.zeros(n)
@@ -161,8 +158,8 @@ class case1(case0):
         self.num_days_DEtoNO[self.simulation_step]=num_days_DEtoNO
         self.num_days_NOtoDE[self.simulation_step]=num_days_NOtoDE
 class case1_delay1(case0):
-    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,delay_NOtoDE=1,delay_DEtoNO=1):
-        case0.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed)
+    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,watertype="dependent",delay_NOtoDE=1,delay_DEtoNO=1,fourier=False):
+        case0.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed,watertype,fourier=fourier)
         self.delay_DEtoNO=delay_DEtoNO
         self.delay_NOtoDE=delay_NOtoDE
 
@@ -216,8 +213,8 @@ class case1_delay1(case0):
         self.num_days_NOtoDE[self.simulation_step]=num_days_NOtoDE
 
 class case2(case0):
-    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,delay_NOtoDE=0,delay_DEtoNO=0,mean_wind=0.431):
-        case0.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed)
+    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,watertype="dependent",delay_NOtoDE=0,delay_DEtoNO=0,mean_wind=0.431,fourier=False):
+        case0.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed,watertype,fourier=fourier)
         self.delay_DEtoNO=delay_DEtoNO
         self.delay_NOtoDE=delay_NOtoDE
         self.mean_wind=mean_wind*1e6*(1-self.cable_loss) #Twh
@@ -266,8 +263,8 @@ class case2(case0):
         self.import_export_balance[self.simulation_step]=balance/self.num_years
         self.norwegian_balance[self.simulation_step]=np.sum(toNorway-toGermany/(1-self.cable_loss)-self.simulation_results[2]+self.simulation_results[0]+self.simulation_results[4])/self.num_years
 class case3_1(case0):
-    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,delay_NOtoDE=0,delay_DEtoNO=0,mean_wind=0.431):
-        case0.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed)
+    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,watertype="dependent",delay_NOtoDE=0,delay_DEtoNO=0,mean_wind=0.431,fourier=False):
+        case0.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed,watertype,fourier=fourier)
         self.delay_DEtoNO=delay_DEtoNO
         self.delay_NOtoDE=delay_NOtoDE
         self.platform_restriction=10/52*1e6 #MWh
@@ -320,8 +317,8 @@ class case3_1(case0):
         self.CO2[self.simulation_step]=(CO2_germany+CO2_norway-CO2_saved_platform_good)/self.num_years
         self.norwegian_balance[self.simulation_step]=np.sum(toNorway-toPlatforms-self.simulation_results[2]+self.simulation_results[0]+self.simulation_results[4])/self.num_years
 class case3_2(case3_1):
-    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,delay_NOtoDE=0,delay_DEtoNO=0,mean_wind=0.431,reduction=0.3333333333):
-        case3_1.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed,delay_NOtoDE,delay_DEtoNO,mean_wind)
+    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,watertype="dependent",delay_NOtoDE=0,delay_DEtoNO=0,mean_wind=0.431,reduction=0.3333333333,fourier=False):
+        case3_1.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed,watertype,delay_NOtoDE,delay_DEtoNO,mean_wind,fourier=fourier)
         self.reduction=reduction #Reduce how much is sent to Germany when Germany is in need of extra :)
         self.mean_wind=mean_wind*1e6*(1-self.cable_loss) #Twh
     def sample(self):
@@ -382,8 +379,8 @@ class case3_2(case3_1):
         self.CO2[self.simulation_step]=(CO2_germany+CO2_norway-CO2_saved_platform_good)/self.num_years
         self.norwegian_balance[self.simulation_step]=np.sum(toNorway-toGermany/(1-self.cable_loss)-toPlatforms-self.simulation_results[2]+self.simulation_results[0]+self.simulation_results[4])/self.num_years
 class case3_3(case3_1):
-    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,delay_NOtoDE=0,delay_DEtoNO=0,mean_wind=0.431):
-        case3_1.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed,delay_NOtoDE,delay_DEtoNO,mean_wind)
+    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,watertype="dependent",delay_NOtoDE=0,delay_DEtoNO=0,mean_wind=0.431,fourier=False):
+        case3_1.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed,watertype,delay_NOtoDE,delay_DEtoNO,mean_wind,fourier=fourier)
     def sample(self):
         for i in range (len(self.simulation_results)):
             self.simulation_results[i]*=24*7 #Convert from MW to MWh
@@ -436,8 +433,8 @@ class case3_3(case3_1):
         self.norwegian_balance[self.simulation_step]=np.sum(toNorway-toGermany/(1-self.cable_loss)-toPlatforms-self.simulation_results[2]+self.simulation_results[0]+self.simulation_results[4])/self.num_years
 
 class case4(case3_1):
-    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,delay_NOtoDE=0,delay_DEtoNO=0,mean_wind=0.431):
-        case3_1.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed,delay_NOtoDE,delay_DEtoNO,mean_wind)
+    def __init__(self,coefs,trend_coefs,season_coefs,num_years=1,start_year=2020,seed=0,watertype="dependent",delay_NOtoDE=0,delay_DEtoNO=0,mean_wind=0.431,fourier=False):
+        case3_1.__init__(self,coefs,trend_coefs,season_coefs,num_years,start_year,seed,watertype,delay_NOtoDE,delay_DEtoNO,mean_wind,fourier=fourier)
     def sample(self):
         for i in range (len(self.simulation_results)):
             self.simulation_results[i]*=24*7 #Convert from MW to MWh

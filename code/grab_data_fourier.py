@@ -137,13 +137,12 @@ def fit_seasonal(data_withouttrend,period=52,degree=6):
     def function_period(t):
         return function((t-1)%period) #-1 because my time starts at one.
     return function_period, coef
-def remove_trend_fourier(data,time,period=52,degree_trend=1,degree_season=6,trend_function=0,num_cos=3):
+def remove_trend_fourier(data,time,period=52,degree_trend=1,degree_season=6,trend_function=0,num_cos=0):
     trend_coef=0
     if trend_function == 0:
         trend_coef=np.polyfit(time, data, degree_trend)
         trend_function=np.poly1d(trend_coef)
     num_sin=degree_season-num_cos
-    season_function,season_coef=fit_seasonal(data-trend_function(time),degree=degree_season,period=period)
     popt, pcov = curve_fit(make_fourier(num_cos,num_sin,period/2), time, data-trend_function(time), [1.0] * (degree_season+1))
     #plt.plot(time,make_fourier(10,10,period/2)(time,*popt),label="fit")
 
@@ -151,7 +150,7 @@ def remove_trend_fourier(data,time,period=52,degree_trend=1,degree_season=6,tren
         return trend_function(t)+make_fourier(num_cos,num_sin,period/2)(t,*popt)
     residual=data-total_trend(time)
     assert abs(np.mean(residual))<1e-5
-    return residual, total_trend, trend_coef,season_coef
+    return residual, total_trend, trend_coef,popt
 def remove_trend(data,time,period=52,degree_trend=1,degree_season=6,trend_function=0):
     """
     Detrends data.
@@ -272,27 +271,30 @@ if logarithm: #take logarithm of the data
 period=int(24*7*52/steplength)
 trend_coefs=[0,0,0,0,0,0]
 season_coefs=[0,0,0,0,0,0]
-
-wind_DE_residue,wind_DE_function,trend_coefs[1],season_coefs[1]=remove_trend(wind_DE,time,period=period)
-wind_NO_residue,wind_NO_function,trend_coefs[0],season_coefs[0]=remove_trend(wind_NO,time,period=period)
-load_DE_residue,load_DE_function,trend_coefs[3],season_coefs[3]=remove_trend(load_DE,time,period=period)
-load_NO_residue,load_NO_function,trend_coefs[2],season_coefs[2]=remove_trend(load_NO,time,period=period)
-solar_DE_residue,solar_DE_function,trend_coefs[5],season_coefs[5]=remove_trend(solar_DE,time,period=period)
-water_NO_residue,water_NO_function,water_NO_trend_coef,water_NO_season_coef=remove_trend(water_NO,time,period=period)
+deg_fourier=6
+num_cos=0
+wind_DE_residue,wind_DE_function,trend_coefs[1],season_coefs[1]=remove_trend_fourier(wind_DE,time,period=period,degree_season=deg_fourier,num_cos=num_cos)
+wind_NO_residue,wind_NO_function,trend_coefs[0],season_coefs[0]=remove_trend_fourier(wind_NO,time,period=period,degree_season=deg_fourier,num_cos=num_cos)
+load_DE_residue,load_DE_function,trend_coefs[3],season_coefs[3]=remove_trend_fourier(load_DE,time,period=period,degree_season=deg_fourier,num_cos=num_cos)
+load_NO_residue,load_NO_function,trend_coefs[2],season_coefs[2]=remove_trend_fourier(load_NO,time,period=period,degree_season=deg_fourier,num_cos=num_cos)
+solar_DE_residue,solar_DE_function,trend_coefs[5],season_coefs[5]=remove_trend_fourier(solar_DE,time,period=period,degree_season=deg_fourier,num_cos=num_cos)
+water_NO_residue,water_NO_function,water_NO_trend_coef,water_NO_season_coef=remove_trend_fourier(water_NO,time,period=period,degree_season=deg_fourier,num_cos=num_cos)
 
 
 water_NO4_trend  = np.poly1d(np.polyfit(time_month, water_NO_4week,1))
 trend_coefs[4]=[0,np.mean(water_NO_4week)]
-water_NO4_season,water_NO4_season_coef = fit_seasonal(water_NO_4week-water_NO4_trend(time_month),period=13,degree=6)
+water_NO4_season_coef, pcov = curve_fit(make_fourier(num_cos,deg_fourier-num_cos,13/2), time_month, water_NO_4week-water_NO4_trend(time_month), [1.0] * (deg_fourier+1))
 season_coefs[4]=water_NO4_season_coef
+water_NO4_season=lambda t:make_fourier(num_cos,deg_fourier-num_cos,13/2)(t,*water_NO4_season_coef)
 water_NO4_residue= water_NO_4week-water_NO4_season(time_month)-water_NO4_trend(time_month)
 water_NO4_function=lambda t: water_NO4_season(t/4)+constfunc(water_NO_4week)(t/4)
+print(time)
+for i in range(len(time)):
+    print(time[i],water_NO4_function(i))
+
 
 water_NO_trend  = np.poly1d(np.polyfit(time, water_NO,1))
 water_NO_season,water_NO_season_coef = fit_seasonal(water_NO-water_NO_trend(time),period=52,degree=4)
-
-
-
 water_NO_residue= water_NO-water_NO_season(time)-water_NO_trend(time)
 stigning=np.polyfit(time,load_NO,1)[0]#couple wind production to  energy production
 stigning=0  #make wind production constant in time
@@ -322,7 +324,7 @@ def plot_timeseries():
     plt.legend(loc="upper left")
     plt.tight_layout()
     if logarithm:
-        plt.savefig("../graphs/time_series_electricity_data_log.pdf")
+        plt.savefig("../graphs/time_series_electricity_data_logfourier.pdf")
         plt.show()
         plt.plot(time,np.exp(wind_NO),label="wind NO",color="cyan")
         plt.plot(time,np.exp(wind_NO_function(time)),"--",color="cyan")
@@ -340,11 +342,11 @@ def plot_timeseries():
         plt.tight_layout()
         plt.ylabel("MW")
         plt.xlabel("week")
-        plt.savefig("../graphs/time_series_electricity_data.pdf")
+        plt.savefig("../graphs/time_series_electricity_datafourier.pdf")
     else:
-        plt.savefig("../graphs/time_series_electricity_data.pdf")
+        plt.savefig("../graphs/time_series_electricity_datafourier.pdf")
     plt.show()
-#plot_timeseries()
+plot_timeseries()
 
 def plot_residues():
     fig, axs = plt.subplots(3, 1,figsize=(10,10))
@@ -369,9 +371,9 @@ def plot_residues():
 
     plt.tight_layout()
     if logarithm:
-        plt.savefig("../graphs/residue_timeseries_log.pdf")
+        plt.savefig("../graphs/residue_timeseries_logfourier.pdf")
     else:
-        plt.savefig("../graphs/residue_timeseries.pdf")
+        plt.savefig("../graphs/residue_timeseriesfourier.pdf")
     plt.show()
 plot_residues()
 
@@ -499,11 +501,12 @@ def plot_example():
     plt.xlabel("week")
     plt.ylabel("MW")
     plt.tight_layout()
-    plt.savefig("../graphs/testing_predictions.pdf")
+    plt.savefig("../graphs/testing_predictionsfourier.pdf")
     plt.show()
 plot_example()
 def plot_correlations():
     """Plots the correlations of the fitted data"""
+    plt.rcParams.update({'font.size': 18})
     fig, axs = plt.subplots(3, 2,figsize=(10,10))
     for i in range(3):
         for j in range(2):
@@ -542,8 +545,9 @@ def plot_correlations():
     axs[2,1].axhline(+1.96/np.sqrt(len(water_NO4_residue)))
     axs[2,1].axhline(-1.96/np.sqrt(len(water_NO4_residue)))
     plt.tight_layout()
-    plt.savefig("../graphs/residual_correlations.pdf")
+    plt.savefig("../graphs/residual_correlationsfourier.pdf")
     plt.show()
+    plt.rcParams.update({'font.size': 12})
 plot_correlations()
 
 wind_and_sun=np.array([wind_NO_residue,wind_DE_residue,solar_DE_residue]).T
@@ -622,7 +626,7 @@ plt.legend(loc="upper left")
 plt.tight_layout()
 plt.xlabel("week")
 plt.ylabel("MW")
-plt.savefig("../graphs/testing_predictions_enhanced.pdf")
+plt.savefig("../graphs/testing_predictions_enhancedfourier.pdf")
 plt.show()
 
 trend_dict={}
@@ -641,6 +645,6 @@ season_pd=pd.DataFrame(season_dict)
 #water=pd.DataFrame({"sigma:":model_NOloadwater.sigma_u/4})
 import scipy.io
 mdict={"load_coefs":model_load.coefs,"windsun_coefs":model_windsun.coefs,"load_sigma":model_load.sigma_u.to_numpy(),"windsun_sigma":model_windsun.sigma_u.to_numpy(),"water_sigma":model_NOloadwater.sigma_u.to_numpy()/4}
-scipy.io.savemat("../data/timeseries.mat", mdict=mdict, oned_as='row')
-trend_pd.to_csv("../data/trends.csv")
-season_pd.to_csv("../data/season.csv")
+scipy.io.savemat("../data/timeseriesfourier.mat", mdict=mdict, oned_as='row')
+trend_pd.to_csv("../data/trendsfourier.csv")
+season_pd.to_csv("../data/seasonfourier.csv")

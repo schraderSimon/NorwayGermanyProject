@@ -14,7 +14,17 @@ trend_coefs=pd.read_csv("../data/trends.csv")
 #trend_coefs["water NO"][0]=trend_coefs["load NO"][0]*2 #make water raise as fast  as production
 season_coefs=pd.read_csv("../data/season.csv")
 #mean_winddict={2022:2.048,2020:0.41}
+coefsfourier=scipy.io.loadmat("../data/timeseriesfourier.mat")
+trend_coefsfourier=pd.read_csv("../data/trendsfourier.csv")
+#trend_coefs["water NO"][0]=trend_coefs["load NO"][0]*2 #make water raise as fast  as production
+season_coefsfourier=pd.read_csv("../data/seasonfourier.csv")
+#mean_winddict={2022:2.048,2020:0.41}
 mean_winddict={}
+fourier=False
+if fourier:
+    season_coefs=season_coefsfourier
+    coefs=coefsfourier
+    trend_coefs=trend_coefsfourier
 functions=[]
 for i in range(len(order)):
     trend=trend_coefs[order[i]]
@@ -40,12 +50,13 @@ filename_case3_2="../data/case3_2_%d_%d_%d_%d.csv"%(start_year,num_years,num_sim
 filename_case3_3="../data/case3_3_%d_%d_%d_%d.csv"%(start_year,num_years,num_simulations,seed)
 
 filename_case4="../data/case4_%d_%d_%d_%d.csv"%(start_year,num_years,num_simulations,seed)
-
+dependency="dependent"
 try:
     case0_data=pd.read_csv(filename_case0)
 except FileNotFoundError:
     print("Case 0 not found, simulating")
-    case0_simulator=case0(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years)
+    print(season_coefs)
+    case0_simulator=case0(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,watertype=dependency,fourier=fourier)
     case0_simulator.simulate_n_years(n=num_simulations)
     nor_balance_0=case0_simulator.norwegian_balance/1e6
     nor_balance_0_nowind=case0_simulator.norwegian_balance_nowind/1e6
@@ -66,7 +77,7 @@ try:
     case1_data=pd.read_csv(filename_case1)
 except FileNotFoundError:
     print("Case 1 not found, simulating")
-    case1_simulator=case1(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=0,delay_NOtoDE=0)
+    case1_simulator=case1(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=0,delay_NOtoDE=0,watertype=dependency,fourier=fourier)
     case1_simulator.simulate_n_years(n=num_simulations)
     nor_balance_1=case1_simulator.norwegian_balance/1e6
     CO2_hist_case1=case1_simulator.get_CO2()/1e9
@@ -79,7 +90,7 @@ try:
     case1_delay1_data=pd.read_csv(filename_case1_delay1)
 except FileNotFoundError:
     print("Case 1 delay1 not found, simulating")
-    case1_simulator=case1_delay1(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=1,delay_NOtoDE=1)
+    case1_simulator=case1_delay1(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=1,delay_NOtoDE=1,watertype=dependency,fourier=fourier)
     case1_simulator.simulate_n_years(n=num_simulations)
     nor_balance_1=case1_simulator.norwegian_balance/1e6
     CO2_hist_case1=case1_simulator.get_CO2()/1e9
@@ -95,10 +106,10 @@ except FileNotFoundError:
     try: #Check if mean_wind for this year is already defined. If not...
         mean_wind=mean_winddict[start_year]
     except KeyError:
-        case0_simulator=case0(coefs,trend_coefs,season_coefs,seed=24958234534253245,start_year=start_year,num_years=num_years)
+        case0_simulator=case0(coefs,trend_coefs,season_coefs,seed=24958234534253245,start_year=start_year,num_years=num_years,watertype=dependency,fourier=fourier)
         case0_simulator.simulate_n_years(n=1000)
         mean_wind=np.mean(case0_simulator.wind_toNorway/1e6)
-    case2_simulator=case2(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=0,delay_NOtoDE=0,mean_wind=mean_wind)
+    case2_simulator=case2(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=0,delay_NOtoDE=0,mean_wind=mean_wind,watertype=dependency,fourier=fourier)
     case2_simulator.simulate_n_years(n=num_simulations)
     CO2_hist_case2=case2_simulator.get_CO2()/1e9
     exp_balance_case2=-case2_simulator.import_export_balance/1e6
@@ -109,7 +120,7 @@ try:
     case3_1_data=pd.read_csv(filename_case3_1)
 except FileNotFoundError:
     print("Case 3_1 not found, simulating")
-    case3_1_simulator=case3_1(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=0,delay_NOtoDE=0)
+    case3_1_simulator=case3_1(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=0,delay_NOtoDE=0,watertype=dependency,fourier=fourier)
     case3_1_simulator.simulate_n_years(n=num_simulations)
     nor_balance_case3_1=case3_1_simulator.norwegian_balance/1e6
     CO2_hist_case3_1=case3_1_simulator.get_CO2()/1e9
@@ -121,7 +132,7 @@ try:
     case3_3_data=pd.read_csv(filename_case3_3)
 except FileNotFoundError:
     print("Case 3_3 not found, simulating")
-    case3_3_simulator=case3_3(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=0,delay_NOtoDE=0)
+    case3_3_simulator=case3_3(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=0,delay_NOtoDE=0,watertype=dependency,fourier=fourier)
     case3_3_simulator.simulate_n_years(n=num_simulations)
     nor_balance_case3_3=case3_3_simulator.norwegian_balance/1e6
     CO2_hist_case3_3=case3_3_simulator.get_CO2()/1e9
@@ -138,10 +149,10 @@ except FileNotFoundError:
     try: #Check if mean_wind for this year is already defined. If not...
         mean_wind=mean_winddict[start_year]
     except KeyError:
-        case0_simulator=case0(coefs,trend_coefs,season_coefs,seed=24958234534253245,start_year=start_year,num_years=num_years)
+        case0_simulator=case0(coefs,trend_coefs,season_coefs,seed=24958234534253245,start_year=start_year,num_years=num_years,watertype=dependency,fourier=fourier)
         case0_simulator.simulate_n_years(n=1000)
         mean_wind=np.mean(case0_simulator.wind_toNorway/1e6)
-    case3_2_simulator=case3_2(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=0,delay_NOtoDE=0,mean_wind=mean_wind)
+    case3_2_simulator=case3_2(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=0,delay_NOtoDE=0,mean_wind=mean_wind,watertype=dependency,fourier=fourier)
     case3_2_simulator.simulate_n_years(n=num_simulations)
     nor_balance_case3_2=case3_2_simulator.norwegian_balance/1e6
     CO2_hist_case3_2=case3_2_simulator.get_CO2()/1e9
@@ -153,7 +164,7 @@ try:
     case4_data=pd.read_csv(filename_case4)
 except FileNotFoundError:
     print("Case 4 not found, simulating")
-    case4_simulator=case4(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=0,delay_NOtoDE=0)
+    case4_simulator=case4(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=0,delay_NOtoDE=0,watertype=dependency,fourier=fourier)
     case4_simulator.simulate_n_years(n=num_simulations)
     nor_balance_case4=case4_simulator.norwegian_balance/1e6
     CO2_hist_case4=case4_simulator.get_CO2()/1e9
