@@ -7,12 +7,13 @@ import sys
 import datetime
 from statsmodels.tsa.arima.model import ARIMA
 from scipy.stats import boxcox
-from statsmodels.tsa.stattools import adfuller, kpss
+from statsmodels.tsa.stattools import adfuller, kpss, acf
 from statsmodels.tsa.ar_model import ar_select_order
 import statsmodels.api as sm
 from  statsmodels.tsa.seasonal import seasonal_decompose as se_de
 from  statsmodels.tsa.seasonal import STL
 from statsmodels.tsa.arima_process import arma_generate_sample
+from statsmodels.graphics.tsaplots import plot_acf
 import warnings
 from statsmodels.tsa.api import VAR
 from statsmodels.tsa.stattools import ccf
@@ -137,16 +138,6 @@ def fit_seasonal(data_withouttrend,period=52,degree=6):
     def function_period(t):
         return function((t-1)%period) #-1 because my time starts at one.
     return function_period, coef
-def remove_trend_fourier(data,time,period=52,degree_trend=1,degree_season=6,trend_function=0,num_cos=3):
-    trend_coef=0
-    if trend_function == 0:
-        trend_coef=np.polyfit(time, data, degree_trend)
-        trend_function=np.poly1d(trend_coef)
-    num_sin=degree_season-num_cos
-    season_function,season_coef=fit_seasonal(data-trend_function(time),degree=degree_season,period=period)
-    popt, pcov = curve_fit(make_fourier(num_cos,num_sin,period/2), time, data-trend_function(time), [1.0] * (degree_season+1))
-    #plt.plot(time,make_fourier(10,10,period/2)(time,*popt),label="fit")
-
     def total_trend(t):
         return trend_function(t)+make_fourier(num_cos,num_sin,period/2)(t,*popt)
     residual=data-total_trend(time)
@@ -214,6 +205,8 @@ print("Solar Germany total:%f MWh"%(np.sum(solar_DE)*steplength))
 print("Load Germany total:%f MWh"%(np.sum(load_DE)*steplength))
 print("Load Norway total:%f MWh"%(np.sum(load_NO)*steplength))
 
+
+"""Read in water data"""
 water_data=pd.read_csv("../data/vann_norge_ny.csv",delimiter=";")
 water_data=water_data.set_index("maaned")
 oil_data=pd.read_csv("../data/olje.csv",delimiter=";")
@@ -234,11 +227,13 @@ oil_data.drop(oil_data.tail(1).index,inplace=True)
 
 water_data["Elektrisk kraft"]+=np.mean(water_data["Elektrisk kraft"])*0.02
 
-steplength=168 #a week.
+steplength=168 #a week
 
 num_timesteps=int(num_years*52*24*7/steplength) #Number of time steps in total
 time=np.linspace(1,num_timesteps,num_timesteps,dtype="int")
 
+
+"""Create weekly data"""
 wind_DE,wind_DE_std=average_array(wind_DE,steplength)
 solar_DE,solar_DE_std=average_array(solar_DE,steplength)
 wind_NO,wind_NO_std=average_array(wind_NO,steplength)
@@ -250,7 +245,8 @@ wind_DE=fill_nan(wind_DE)
 load_DE=fill_nan(load_DE)-15000 #Remove 15000 from the German data as part of the deterministic trend
 solar_DE=fill_nan(solar_DE)
 water_NO=weekify(water_data,num_years)
-#water_NO+=0.02*np.mean(water_NO) #add thermal
+water_NO+=0.02*np.mean(water_NO) #add thermal
+
 time_month=np.linspace(1,int(13*num_years),int(13*num_years))
 water_NO_4week=four_weekify(water_data,num_years)
 
@@ -264,7 +260,7 @@ print("Water Norway total (total):%f Mwh"%(np.sum(water_data["Elektrisk kraft"].
 
 logarithm=True
 polydeg=1
-if logarithm: #take logarithm of the data
+if logarithm: #take logarithm of the data, which we do.
     wind_DE,solar_DE,wind_NO,load_NO,load_DE,water_NO,water_NO_4week=np.log(wind_DE),np.log(solar_DE),np.log(wind_NO),np.log(load_NO),np.log(load_DE),np.log(water_NO),np.log(water_NO_4week)
 
 
@@ -279,7 +275,6 @@ load_DE_residue,load_DE_function,trend_coefs[3],season_coefs[3]=remove_trend(loa
 load_NO_residue,load_NO_function,trend_coefs[2],season_coefs[2]=remove_trend(load_NO,time,period=period)
 solar_DE_residue,solar_DE_function,trend_coefs[5],season_coefs[5]=remove_trend(solar_DE,time,period=period)
 water_NO_residue,water_NO_function,water_NO_trend_coef,water_NO_season_coef=remove_trend(water_NO,time,period=period)
-
 
 water_NO4_trend  = np.poly1d(np.polyfit(time_month, water_NO_4week,1))
 trend_coefs[4]=[0,np.mean(water_NO_4week)]
@@ -375,7 +370,7 @@ def plot_residues():
     plt.show()
 plot_residues()
 
-
+"""Run tests"""
 print("Wind NO:")
 adf_test(wind_NO_residue)
 kpss_test(wind_NO_residue)
@@ -388,15 +383,7 @@ kpss_test(load_NO_residue)
 print("Load DE")
 adf_test(load_DE_residue)
 kpss_test(load_DE_residue)
-"""
-for i in range(2,20):
-    for j in range(i+1):
-        load_NO_residue,load_NO_function,trend_coefs[2],season_coefs[2]=remove_trend_fourier(load_NO,time,period=period,degree_season=i,num_cos=j)
-        print("%d %d"%(i,j))
-        adf_test(load_NO_residue)
-        kpss_test(load_NO_residue)
-sys.exit(1)
-"""
+
 print("Water NO")
 
 adf_test(water_NO4_residue)
@@ -429,17 +416,28 @@ plot_times_future=times_future;plot_times_future[4]*=4
 
 
 arma_models=[]
+from scipy import stats
 for i,residue in enumerate(residues):
     print(len(residue))
     maxlag=3
     try:
         arma_model_degree=ar_select_order(residue,maxlag=maxlag).ar_lags[-1]
 
-    except IndexError:
+    except IndexError: #If the array is empty, no AR is suggested
         arma_model_degree=0
     print("%s is a %d process"%(order[i],arma_model_degree))
     arma_models.append(ARIMA(residue,order=(arma_model_degree,0,0)).fit())
     print(len(residue),len(arma_models[-1].resid))
+    #plt.plot(arma_models[-1].resid/np.std(arma_models[-1].resid),color=colors[i],label=order[i])
+    #plt.hist(arma_models[-1].resid/np.std(arma_models[-1].resid),color=colors[i],label=order[i],alpha=0.1)
+
+    statistic,pval=stats.ks_2samp(arma_models[-1].resid/np.std(arma_models[-1].resid),np.random.normal(0,1,len(arma_models[-1].resid)))
+    #plot_acf(arma_models[-1].resid/np.std(arma_models[-1].resid))
+    if pval>0.05:
+        print("Null hypothesis cannot be rejected, p=%.4f,stat=%.4f, The difference is normally distributed for %s"%(pval,statistic,order[i]))
+    else:
+        print("Null hypothesis can be rejected, p=%.4f,stat=%.4f, The difference is not normally distributed for %s"%(pval,statistic,order[i]))
+
 print("Trend coefficients")
 for i in range(len(order)):
     print("\\item %s: $T(t)=%ft+%f$ \\\\"%(order[i],trend_coefs[i][0],trend_coefs[i][1]))
@@ -462,9 +460,6 @@ for i in range(len(order)):
     #print("$%.3E$ \\\\ \\hline"%season_coefs[i][-1])
 print("stationray coeff")
 for i,arma_model in enumerate(arma_models):
-    #print(arma_model.summary())
-    #print(arma_model.params)
-    #print(arma_model.bse)
     sigma=arma_model.params[-1]
     sigmaerr=arma_model.bse[-1]
     phi1,phi2,phi3=0,0,0
@@ -479,6 +474,8 @@ for i,arma_model in enumerate(arma_models):
         phi3=arma_model.params[3]
         ephi3=arma_model.bse[3]
     print("%s & %f$\pm$%f & %f$\pm$%f & %f$\pm$%f & %f$\pm$ %f \\\\ \\hline"%(order[i],phi1,ephi1,phi2,ephi2,phi3,ephi3,sigma,sigmaerr))
+    if i==4:
+        water_coefs=[phi1,phi2]
 new_data=[]
 for i in range(len(arma_models)):
     deterministic_y=deterministic_functions[i](times_future[i])
@@ -501,7 +498,7 @@ def plot_example():
     plt.tight_layout()
     plt.savefig("../graphs/testing_predictions.pdf")
     plt.show()
-plot_example()
+#plot_example()
 def plot_correlations():
     """Plots the correlations of the fitted data"""
     fig, axs = plt.subplots(3, 2,figsize=(10,10))
@@ -544,7 +541,7 @@ def plot_correlations():
     plt.tight_layout()
     plt.savefig("../graphs/residual_correlations.pdf")
     plt.show()
-plot_correlations()
+#plot_correlations()
 
 wind_and_sun=np.array([wind_NO_residue,wind_DE_residue,solar_DE_residue]).T
 load=np.array([load_NO_residue,load_DE_residue]).T
@@ -554,8 +551,20 @@ df_load = pd.DataFrame(load, columns = ['Load NO',"Load DE"],index=time)
 df_sunwind=pd.DataFrame(wind_and_sun, columns = ["Wind NO",'Wind DE',"Sun DE"],index=time)
 df_NOloadwater=pd.DataFrame(monthly_load_and_water, columns = ['Load NO',"Water NO"],index=time_month)
 model_windsun = VAR(df_sunwind).fit(maxlags=1,ic="aic")
+
 model_load = VAR(df_load).fit(maxlags=3,ic="aic")
 model_NOloadwater = VAR(df_NOloadwater).fit(maxlags=2,ic="aic")
+"""
+for i in range(2):
+    statistic,pval=stats.ks_2samp(model_load.resid.to_numpy()[:,i]/np.std(model_load.resid.to_numpy()[:,i]),np.random.normal(0,1,len(model_load.resid.to_numpy()[:,i])))
+    plot_acf(model_load.resid.to_numpy()[:,i]/np.std(model_load.resid.to_numpy()[:,i]))
+    if pval>0.05:
+        print("Null hypothesis cannot be rejected, p=%.4f,stat=%.4f, The difference is normally distributed for %s"%(pval,statistic,order[i+3]))
+    else:
+        print("Null hypothesis can be rejected, p=%.4f,stat=%.4f, The difference is not normally distributed for %s"%(pval,statistic,order[i+3]))
+plt.show()
+sys.exit(1)
+"""
 def plot_predict_loads():
     matrix_1=model_load.coefs[0]
     matrix_2=model_load.coefs[1]
@@ -636,11 +645,10 @@ for i in range(6):
 
 trend_pd=pd.DataFrame(trend_dict)
 season_pd=pd.DataFrame(season_dict)
-#wind_sun_pd=pd.DataFrame({"coefs_0":model_windsun.coefs[0]})
-#loads=pd.DataFrame({"coefs":model_load.coefs,"sigma":model_load.sigma_u})
-#water=pd.DataFrame({"sigma:":model_NOloadwater.sigma_u/4})
+
 import scipy.io
-mdict={"load_coefs":model_load.coefs,"windsun_coefs":model_windsun.coefs,"load_sigma":model_load.sigma_u.to_numpy(),"windsun_sigma":model_windsun.sigma_u.to_numpy(),"water_sigma":model_NOloadwater.sigma_u.to_numpy()/4}
+print(water_coefs)
+mdict={"load_coefs":model_load.coefs,"windsun_coefs":model_windsun.coefs,"water_coefs":water_coefs,"load_sigma":model_load.sigma_u.to_numpy(),"windsun_sigma":model_windsun.sigma_u.to_numpy(),"water_sigma":model_NOloadwater.sigma_u.to_numpy()/4}
 scipy.io.savemat("../data/timeseries.mat", mdict=mdict, oned_as='row')
 trend_pd.to_csv("../data/trends.csv")
 season_pd.to_csv("../data/season.csv")

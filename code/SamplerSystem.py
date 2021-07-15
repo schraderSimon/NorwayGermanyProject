@@ -31,13 +31,8 @@ class VARSampler:
         for i in range(t):
             #Calculate next time step
             self.propagate(random_variables[i]) #
-            if(i==5):
-                #sys.exit(1)
-                pass
             returnX[:,i]=self.X[:,0]
-        #print((returnX.T))
-        #sys.exit(1)
-        if returnRandom: #If the random variables should be returned to
+        if returnRandom:
             return returnX, random_variables
         else:
             return returnX

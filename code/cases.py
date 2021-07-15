@@ -46,7 +46,7 @@ class case0:
         timeseries_loads,loadingstrandom=loadings.sample_series(self.num_steps,returnRandom=True)
         self.simulation_results[2]=np.exp(timeseries_loads[0]+self.functions[2](self.time))
         self.simulation_results[3]=np.exp(timeseries_loads[1]+self.functions[3](self.time))
-        water_data=water_sampler(loadingstrandom[:,0],self.coefs["water_sigma"],seed=seed+2,watertype=self.watertype)
+        water_data=water_sampler(loadingstrandom[:,0],self.coefs["water_sigma"],reg_coefs=self.coefs["water_coefs"][0],seed=seed+2,watertype=self.watertype)
         self.simulation_results[4]=np.exp(water_data+self.functions[4](self.time))
 
     def simulate_n_years(self,n=1):
@@ -333,7 +333,7 @@ class case3_2(case3_1):
         """Calculate emissions from the actual productions, before considering what is send where, assuming sending is emission-free"""
         CO2_germany=np.sum(self.simulation_results[1])*self.CO2_wind_germany+np.sum(self.simulation_results[5])*self.CO2_solar_germany+15000*self.CO2_rest_germany
         CO2_norway=np.sum(self.simulation_results[0])*self.CO2_wind_norway+np.sum(self.simulation_results[4])*self.CO2_water_norway+13.9*1e9
-        printout=True
+        printout=False #Debugging variable
         for i in range(self.num_years*52):
             norwegian_overproduction=-(self.simulation_results[2][i]-(self.simulation_results[0][i]+self.simulation_results[4][i]))
             german_overproduction=-(self.simulation_results[3][i]-(self.simulation_results[1][i]+self.simulation_results[5][i]))

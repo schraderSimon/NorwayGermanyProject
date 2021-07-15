@@ -22,3 +22,13 @@ def make_fourier(na, nb,p):
             ret += a[deg] * np.sin((deg+1) * np.pi / p * (x-a[-1]))
         return ret
     return fourier
+def make_fourierline(na, nb,p):
+    def fourier(x, *a):
+        ret= a[0]
+        ret+=a[1]*x
+        for deg in range(2, na+2):
+            ret += a[deg] * np.cos((deg-1) * np.pi / p * (x-a[-1]))
+        for deg in range(na+2, na+nb+2):
+            ret += a[deg] * np.sin((deg-1) * np.pi / p * (x-a[-1]))
+        return ret
+    return fourier

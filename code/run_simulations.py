@@ -21,6 +21,20 @@ season_coefsfourier=pd.read_csv("../data/seasonfourier.csv")
 #mean_winddict={2022:2.048,2020:0.41}
 mean_winddict={}
 fourier=False
+try:
+    start_year=int(sys.argv[1])
+    num_years=int(sys.argv[2])
+    num_simulations=int(sys.argv[3])
+    seed=int(sys.argv[4])
+    try:
+        fourier=bool(int(sys.argv[5]))
+    except:
+        pass
+except:
+    start_year=2020
+    num_years=1
+    num_simulations=10000
+    seed=0
 if fourier:
     season_coefs=season_coefsfourier
     coefs=coefsfourier
@@ -30,16 +44,8 @@ for i in range(len(order)):
     trend=trend_coefs[order[i]]
     season=season_coefs[order[i]]
     functions.append(coefs_to_function(trend,season,period=periods[i]))
-try:
-    start_year=int(sys.argv[1])
-    num_years=int(sys.argv[2])
-    num_simulations=int(sys.argv[3])
-    seed=int(sys.argv[4])
-except:
-    start_year=2020
-    num_years=1
-    num_simulations=10000
-    seed=0
+
+
 
 filename_case0="../data/case0_%d_%d_%d_%d.csv"%(start_year,num_years,num_simulations,seed)
 filename_case1="../data/case1_%d_%d_%d_%d.csv"%(start_year,num_years,num_simulations,seed)
@@ -55,6 +61,7 @@ try:
     case0_data=pd.read_csv(filename_case0)
 except FileNotFoundError:
     print("Case 0 not found, simulating")
+    print(fourier)
     print(season_coefs)
     case0_simulator=case0(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,watertype=dependency,fourier=fourier)
     case0_simulator.simulate_n_years(n=num_simulations)
@@ -109,6 +116,8 @@ except FileNotFoundError:
         case0_simulator=case0(coefs,trend_coefs,season_coefs,seed=24958234534253245,start_year=start_year,num_years=num_years,watertype=dependency,fourier=fourier)
         case0_simulator.simulate_n_years(n=1000)
         mean_wind=np.mean(case0_simulator.wind_toNorway/1e6)
+        standarderr=np.std(case0_simulator.wind_toNorway/1e6)/np.sqrt(10000)
+        print("Mean wind: %f+-%f"%(mean_wind,standarderr))
     case2_simulator=case2(coefs,trend_coefs,season_coefs,seed=seed,start_year=start_year,num_years=num_years,delay_DEtoNO=0,delay_NOtoDE=0,mean_wind=mean_wind,watertype=dependency,fourier=fourier)
     case2_simulator.simulate_n_years(n=num_simulations)
     CO2_hist_case2=case2_simulator.get_CO2()/1e9

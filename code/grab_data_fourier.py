@@ -288,9 +288,6 @@ season_coefs[4]=water_NO4_season_coef
 water_NO4_season=lambda t:make_fourier(num_cos,deg_fourier-num_cos,13/2)(t,*water_NO4_season_coef)
 water_NO4_residue= water_NO_4week-water_NO4_season(time_month)-water_NO4_trend(time_month)
 water_NO4_function=lambda t: water_NO4_season(t/4)+constfunc(water_NO_4week)(t/4)
-print(time)
-for i in range(len(time)):
-    print(time[i],water_NO4_function(i))
 
 
 water_NO_trend  = np.poly1d(np.polyfit(time, water_NO,1))
@@ -390,15 +387,7 @@ kpss_test(load_NO_residue)
 print("Load DE")
 adf_test(load_DE_residue)
 kpss_test(load_DE_residue)
-"""
-for i in range(2,20):
-    for j in range(i+1):
-        load_NO_residue,load_NO_function,trend_coefs[2],season_coefs[2]=remove_trend_fourier(load_NO,time,period=period,degree_season=i,num_cos=j)
-        print("%d %d"%(i,j))
-        adf_test(load_NO_residue)
-        kpss_test(load_NO_residue)
-sys.exit(1)
-"""
+
 print("Water NO")
 
 adf_test(water_NO4_residue)
@@ -464,9 +453,6 @@ for i in range(len(order)):
     #print("$%.3E$ \\\\ \\hline"%season_coefs[i][-1])
 print("stationray coeff")
 for i,arma_model in enumerate(arma_models):
-    #print(arma_model.summary())
-    #print(arma_model.params)
-    #print(arma_model.bse)
     sigma=arma_model.params[-1]
     sigmaerr=arma_model.bse[-1]
     phi1,phi2,phi3=0,0,0
@@ -481,6 +467,8 @@ for i,arma_model in enumerate(arma_models):
         phi3=arma_model.params[3]
         ephi3=arma_model.bse[3]
     print("%s & %f$\pm$%f & %f$\pm$%f & %f$\pm$%f & %f$\pm$ %f \\\\ \\hline"%(order[i],phi1,ephi1,phi2,ephi2,phi3,ephi3,sigma,sigmaerr))
+    if i==4:
+        water_coefs=[phi1,phi2]
 new_data=[]
 for i in range(len(arma_models)):
     deterministic_y=deterministic_functions[i](times_future[i])
@@ -640,11 +628,10 @@ for i in range(6):
 
 trend_pd=pd.DataFrame(trend_dict)
 season_pd=pd.DataFrame(season_dict)
-#wind_sun_pd=pd.DataFrame({"coefs_0":model_windsun.coefs[0]})
-#loads=pd.DataFrame({"coefs":model_load.coefs,"sigma":model_load.sigma_u})
-#water=pd.DataFrame({"sigma:":model_NOloadwater.sigma_u/4})
+
 import scipy.io
-mdict={"load_coefs":model_load.coefs,"windsun_coefs":model_windsun.coefs,"load_sigma":model_load.sigma_u.to_numpy(),"windsun_sigma":model_windsun.sigma_u.to_numpy(),"water_sigma":model_NOloadwater.sigma_u.to_numpy()/4}
+print(water_coefs)
+mdict={"load_coefs":model_load.coefs,"windsun_coefs":model_windsun.coefs,"water_coefs":water_coefs,"load_sigma":model_load.sigma_u.to_numpy(),"windsun_sigma":model_windsun.sigma_u.to_numpy(),"water_sigma":model_NOloadwater.sigma_u.to_numpy()/4}
 scipy.io.savemat("../data/timeseriesfourier.mat", mdict=mdict, oned_as='row')
 trend_pd.to_csv("../data/trendsfourier.csv")
 season_pd.to_csv("../data/seasonfourier.csv")

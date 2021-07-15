@@ -8,7 +8,10 @@ from cases import *
 from helper_functions import *
 from sklearn.neighbors import KernelDensity
 from scipy import stats
+import matplotlib
 
+cmap = matplotlib.cm.get_cmap('PuRd')
+background=cmap(0)
 plt.rcParams.update({'font.size': 12, 'legend.labelspacing':0.2})
 order=["wind NO","wind DE","load NO","load DE","water NO","solar DE"]
 periods=[52,52,52,52,13,52]
@@ -64,7 +67,12 @@ case4_data=pd.read_csv(filename_case4)
 german_wind_surplus=case0_data["German wind surplus"].to_numpy()
 german_wind_toNorway=case0_data["German wind to Norway"].to_numpy()
 def plotwind():
-    cutoff=20
+    if start_year==2020:
+        cutoff=5
+    elif start_year==2022:
+        cutoff=20
+    else:
+        cutoff=10
     over_10_rate=len(german_wind_surplus[np.where(german_wind_surplus>cutoff)])/num_simulations
     print("Wind overproduction: %.3f±%.3f"%(np.mean(german_wind_surplus),np.std(german_wind_surplus)))
     print("Wind send to Norway: %.3f±%.3f"%(np.mean(german_wind_toNorway),np.std(german_wind_toNorway)))
@@ -75,7 +83,7 @@ def plotwind():
     #plt.plot(np.linspace(0,cutoff,1000),dens,color="red",alpha=0.5)
     sns.kdeplot(german_wind_surplus,color="red",bw_adjust=0.4,alpha=0.5)
 
-    plt.hist(german_wind_surplus,bins=200,density=True,range=(0,40),label="Total wind overproduction",color="red",alpha=0.5)
+    plt.hist(german_wind_surplus,bins=200,density=True,range=(0,cutoff*2),label="Total wind overproduction",color="red",alpha=0.5)
     bins=int(200/cutoff*np.max(german_wind_toNorway))
     plt.hist(german_wind_toNorway,bins=bins,density=True,label="Exportable wind overproduction",color="blue",alpha=0.5)
     sns.kdeplot(german_wind_toNorway,color="blue",bw_adjust=0.4,alpha=0.5)
@@ -133,7 +141,7 @@ num_weeks_DEtoNO=case1_data["Days DE to NO"].to_numpy()
 num_weeks_NOtoDE_delay1=case1_delay1_data["Days NO to DE"].to_numpy()
 num_weeks_DEtoNO_delay1=case1_delay1_data["Days DE to NO"].to_numpy()
 def boxwhisker():
-    fig, (ax2, ax1) = plt.subplots(2, 1, sharex=False, sharey=True,figsize=(12,6))
+    fig, (ax2, ax1) = plt.subplots(2, 1, sharex=True, sharey=True,figsize=(12,6))
     data=[]
     for i in range(6):
         data.append(case0_data_2020[order[i]].to_numpy())
@@ -212,7 +220,7 @@ def plot1():
 
     ax1.set_title("Electricity, n=%d, year=%d, years=%d"%(num_simulations,start_year,num_years))
     sns.kdeplot(nor_balance_case0,label="NO el. surplus, case 0",color="red",ax=ax1)
-    sns.kdeplot(exp_balance_case1,label="Norwegian el. Export, case 1",color="blue",ax=ax1)
+    sns.kdeplot(exp_balance_case1,label="Norwegian net el. Export, case 1",color="blue",ax=ax1)
     sns.kdeplot(nor_balance_case1,label="NO el. surplus, case 1",color="cyan",ax=ax1)
     ax1.hist(nor_balance_case0,density=True,bins=20,alpha=0.1,color="red")#,ax=ax1)
     ax1.hist(exp_balance_case1,bins=20,density=True,alpha=0.1,color="blue")#,ax=ax1)
@@ -229,24 +237,41 @@ def plot1():
         plt.savefig("../graphs/case0_case1_%d.pdf"%(start_year))
     plt.show()
     maxfit=10000
-    fig, (ax2, ax1) = plt.subplots(1, 2, sharex=False, sharey=True,figsize=(12,6))
-    ax2.hist2d(exp_balance_case1[:maxfit],CO2_hist_case0[:maxfit]-CO2_hist_case1[:maxfit],bins=50,cmap="PuRd")
-    m,b = np.polyfit(exp_balance_case1[:maxfit], CO2_hist_case0[:maxfit]-CO2_hist_case1[:maxfit], 1)
-    print("Slope: %f g/kWh"%(m*1000))
+    xaxis=np.linspace(np.min(nor_balance_case0),np.max(nor_balance_case0),1000)
+    fig, (ax3,ax2, ax1) = plt.subplots(1, 3, sharex=False, sharey=False,figsize=(12,6))
+    ax3.hist2d(nor_balance_case0,exp_balance_case1,bins=50,cmap="PuRd")
+    ax3.set_xlabel("Surplus of case 0 (TWh)")
+    ax3.set_ylabel("Norwegian net exports (TWh)")
+    m,b = np.polyfit(nor_balance_case0, exp_balance_case1, 1)
     def f(x):
         return m*x+b
-    ax2.plot(exp_balance_case1[:maxfit],f(exp_balance_case1[:maxfit]),color="grey",label="linear fit")
-    ax2.set_xlabel("TWh exported (netto)")
+    ax3.plot(xaxis,f(xaxis),color="grey",label="linear fit")
+    ax3.legend()
+    ax2.hist2d(nor_balance_case0,CO2_hist_case0[:maxfit]-CO2_hist_case1[:maxfit],bins=50,cmap="PuRd")
+    ax2.set_facecolor(background)
+    m,b = np.polyfit(nor_balance_case0, CO2_hist_case0[:maxfit]-CO2_hist_case1[:maxfit], 1)
+    print("Slope: %f g/kWh, intercept: %f g"%(m*1000,b*1000))
+    def f(x):
+        return m*x+b
+    ax2.set_xlim([np.min(nor_balance_case0),np.max(nor_balance_case0)])
+    ax2.set_ylim([0,np.max(CO2_hist_case0[:maxfit]-CO2_hist_case1[:maxfit])])
+
+    ax2.plot(xaxis,f(xaxis),color="grey",label="linear fit")
+    ax2.set_xlabel("Surplus of case 0 (TWh)")
     ax2.set_ylabel(r"Million tons CO$_2$ saved")
     ax2.legend()
     maxnum=np.max(num_weeks_DEtoNO[:maxfit])
     minnum=np.min(num_weeks_DEtoNO[:maxfit])
     ax1.hist2d(num_weeks_DEtoNO[:maxfit],CO2_hist_case0[:maxfit]-CO2_hist_case1[:maxfit],bins=(int(maxnum-minnum),20),cmap="PuRd")
+    ax1.set_facecolor(background)
+
     m,b = np.polyfit(num_weeks_DEtoNO[:maxfit], CO2_hist_case0[:maxfit]-CO2_hist_case1[:maxfit], 1)
     def f2(x):
         return m*x+b
     ax1.plot(num_weeks_DEtoNO[:maxfit],f(num_weeks_DEtoNO[:maxfit]),color="grey",label="linear fit")
+    ax1.legend()
     ax1.set_xlabel(r"Number of weeks DE$\rightarrow$NO")
+    ax1.set_ylabel(r"Million tons CO$_2$ saved")
     plt.tight_layout()
 
     if savefile:
@@ -272,7 +297,7 @@ def plot2():
 
     ax1.set_title("Electricity, n=%d, year=%d, years=%d"%(num_simulations,start_year,num_years))
     sns.kdeplot(nor_balance_case0,label="NO el. surplus, case 0",color="red",ax=ax1)
-    sns.kdeplot(exp_balance_case2,label="Norwegian el. Export, case 2",color="blue",ax=ax1)
+    sns.kdeplot(exp_balance_case2,label="Norwegian net el. Export, case 2",color="blue",ax=ax1)
     sns.kdeplot(nor_balance_case2,label="NO el. surplus, case 2",color="green",ax=ax1)
     ax1.hist(nor_balance_case0,density=True,bins=20,alpha=0.1,color="red")
     ax1.hist(exp_balance_case2,bins=20,density=True,alpha=0.1,color="blue")
@@ -440,13 +465,18 @@ def plot33():
     ax2.set_xlabel("TWh")
     ax2.legend()
     ax1.hist2d(toGermany_case3_3,toPlatforms_case3_3,bins=50,cmap="PuRd")
+    ax1.set_facecolor(background)
+
     ax1.set_xlabel("Sent to Germany")
     ax1.set_ylabel("Sent to Platforms")
     m,b = np.polyfit(toGermany_case3_3, toPlatforms_case3_3, 1)
-    print("Slope: %f"%(m))
+    print("Slope: %f, Intercept: %f"%(m,b))
     def f(x):
         return m*x+b
-    ax1.plot(toGermany_case3_3,f(toGermany_case3_3),color="grey",label="linear fit")
+    xaxis=np.linspace(0,np.max(toGermany_case3_3),1000)
+    ax1.plot(xaxis,f(xaxis),color="grey",label="linear fit")
+    ax1.set_xlim(0,np.max(toGermany_case3_3))
+    ax1.set_ylim(0,np.max(toPlatforms_case3_3))
     percentys=toGermany_case3_3/(toPlatforms_case3_3+toGermany_case3_3)*100
     sns.kdeplot(percentys,x=r"Million tons CO$_2$",color="orange",ax=ax3)
     ax3.set_xlim([(100-np.max(percentys)),np.max(percentys)])
@@ -496,9 +526,10 @@ def plot1_delay1():
     sns.kdeplot(CO2_hist_case1_delay1,label="Case 1, delay 1",color="green",ax=ax2)
     print("CO2:")
     print("Case 0: %.2f±%.2f"%(np.mean(CO2_hist_case0),np.std(CO2_hist_case0)))
-    print("Case 1 delay 0: %.2f±%.2f"%(np.mean(CO2_hist_case1),np.std(CO2_hist_case1)))
     print("Case 1 delay 1: %.2f±%.2f"%(np.mean(CO2_hist_case1_delay1),np.std(CO2_hist_case1_delay1)))
-    print("Reduction beetween Case 1 and Case 0: %.2f±%.2f"%(np.mean(CO2_hist_case1-CO2_hist_case0),np.std(CO2_hist_case1-CO2_hist_case0)))
+    print("Reduction beetween Case 1 delay 1 and Case 0: %.2f±%.2f"%(np.mean(CO2_hist_case1_delay1-CO2_hist_case0),np.std(CO2_hist_case1_delay1-CO2_hist_case0)))
+    print("Reduction beetween Case 1 delay 1 and Case 1: %.2f±%.2f"%(np.mean(CO2_hist_case1_delay1-CO2_hist_case1),np.std(CO2_hist_case1_delay1-CO2_hist_case1)))
+
     ax2.set_xlabel(r"Million Tons CO$_2$")
     ax2.set_ylabel("Probability")
     ax2.legend()
@@ -506,7 +537,7 @@ def plot1_delay1():
 
     ax1.set_title("Electricity, n=%d, year=%d, years=%d"%(num_simulations,start_year,num_years))
     sns.kdeplot(nor_balance_case0,label="NO el. surplus, case 0",color="red",ax=ax1)
-    sns.kdeplot(exp_balance_case1,label="Norwegian el. Export, case 1",color="blue",ax=ax1)
+    sns.kdeplot(exp_balance_case1,label="Norwegian net el. Export, case 1",color="blue",ax=ax1)
     sns.kdeplot(nor_balance_case1,label="NO el. surplus, case 1",color="cyan",ax=ax1)
     sns.kdeplot(nor_balance_case1_delay1,label="NO el. surplus, case 1 delay 1",color="magenta",ax=ax1)
     ax1.hist(nor_balance_case0,density=True,bins=20,alpha=0.1,color="red")#,ax=ax1)
@@ -514,17 +545,17 @@ def plot1_delay1():
     ax1.hist(nor_balance_case1,bins=20,density=True,alpha=0.1,color="cyan")#,ax=ax1)
     ax1.hist(nor_balance_case1_delay1,bins=20,density=True,alpha=0.1,color="magenta")
     print("Norwegian surplus case 0: %.4f±%.4f"%(np.mean(nor_balance_case0),np.std(nor_balance_case0)))
-    print("Norwegian surplus case 1: %.4f±%.4f"%(np.mean(nor_balance_case1),np.std(nor_balance_case1)))
+    print("Norwegian surplus case 1 delay 1: %.4f±%.4f"%(np.mean(nor_balance_case1_delay1),np.std(nor_balance_case1_delay1)))
     print("Norwegian export case 1: %.4f±%.4f"%(np.mean(exp_balance_case1),np.std(exp_balance_case1)))
-    print("Difference in surplus beetween Case 1 and Case 0: %.2f±%.2f"%(np.mean((nor_balance_case1-nor_balance_case0)),np.std((nor_balance_case1-nor_balance_case0))))
+    print("Difference in surplus beetween Case 1 delay 1 and Case 0: %.2f±%.2f"%(np.mean((nor_balance_case1_delay1-nor_balance_case0)),np.std((nor_balance_case1_delay1-nor_balance_case0))))
     ax1.set_xlabel("TWh")
     ax1.set_ylabel("Probability")
     ax1.legend(loc="upper left")
     plt.tight_layout()
     if savefile:
-        plt.savefig("../graphs/case0_case1_%d.pdf"%(start_year))
+        plt.savefig("../graphs/case0_case1_delay%d.pdf"%(start_year))
     plt.show()
-
+#plotwind()
 boxwhisker()
 plotstuff()
 plot1()

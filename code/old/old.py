@@ -346,3 +346,38 @@ plt.plot(time,actual,label="actual",color=colors[i])
 plt.legend()
 plt.show()
 '''
+
+"""
+numsin=1
+numcos=1
+popt, pcov = curve_fit(make_fourierline(numcos,numsin,26), time, load_NO, [1.0] * (numsin+numcos+3))
+print(popt)
+plt.plot(time,make_fourierline(numcos,numsin,26)(time,*popt),label="found online")
+residue=load_NO-make_fourierline(numcos,numsin,26)(time,*popt)
+print("Load NO")
+adf_test(residue)
+kpss_test(residue)
+plt.plot(time,load_NO,label="Orig")
+plt.show()
+
+import scipy.fft as fft
+load_NO_detrend=load_NO-np.poly1d(np.polyfit(time,load_NO,1))(time)
+N=len(time)
+fourier_transform=fft.fft(load_NO_detrend)
+
+xf = fft.fftfreq(N, 1)[:N//2]
+plt.plot(xf, 2.0/N * np.abs(fourier_transform[0:N//2]))
+plt.show()
+sorted_coefs=np.sort(np.abs(fourier_transform))
+top_10=sorted_coefs[-10]
+print(sorted_coefs)
+fourier_transform[np.abs(fourier_transform)<top_10]=0
+
+ift=fft.ifft(fourier_transform)
+plt.plot(time,ift,label="Removed Fourier")
+plt.plot(time,load_NO_detrend,label="Detrend")
+plt.plot(time,load_NO,label="Orig")
+
+plt.show()
+sys.exit(1)
+"""
