@@ -332,14 +332,15 @@ def plot_timeseries():
         plt.plot(time_month*4,np.exp(water_NO_4week),label="water NO",color="blue")
         plt.plot(time,np.exp(water_NO4_function(time)),"--",color="blue")
         plt.legend(loc="upper left")
-        plt.tight_layout()
+
         plt.ylabel("MW")
         plt.xlabel("week")
+        plt.tight_layout()
         plt.savefig("../graphs/time_series_electricity_data.pdf")
     else:
         plt.savefig("../graphs/time_series_electricity_data.pdf")
     plt.show()
-#plot_timeseries()
+plot_timeseries()
 
 def plot_residues():
     fig, axs = plt.subplots(3, 1,figsize=(10,10))
@@ -579,7 +580,7 @@ def plot_predict_loads():
     #plt.plot((predict_vals[:,0]-true_vals[:,0]),label="difference")
     plt.legend()
     plt.show()
-#plot_predict_loads()
+plot_predict_loads()
 def print_latex_tables():
     print("Wind,Wind,Sun")
     print(model_windsun.summary())
@@ -628,9 +629,10 @@ plt.plot(water_NO_test,label="water NO",color=colors[4])
 plt.axvline(52*num_years,linestyle="--",color="grey",label="future line")
 plt.title("Example of a system simulated 2017-2022")
 plt.legend(loc="upper left")
-plt.tight_layout()
+
 plt.xlabel("week")
 plt.ylabel("MW")
+plt.tight_layout()
 plt.savefig("../graphs/testing_predictions_enhanced.pdf")
 plt.show()
 

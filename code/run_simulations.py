@@ -20,7 +20,7 @@ trend_coefsfourier=pd.read_csv("../data/trendsfourier.csv")
 season_coefsfourier=pd.read_csv("../data/seasonfourier.csv")
 #mean_winddict={2022:2.048,2020:0.41}
 mean_winddict={}
-fourier=False
+fourier=False #Wether we want to use sinusoidal functions for the fit or not.
 try:
     start_year=int(sys.argv[1])
     num_years=int(sys.argv[2])
@@ -56,7 +56,7 @@ filename_case3_2="../data/case3_2_%d_%d_%d_%d.csv"%(start_year,num_years,num_sim
 filename_case3_3="../data/case3_3_%d_%d_%d_%d.csv"%(start_year,num_years,num_simulations,seed)
 
 filename_case4="../data/case4_%d_%d_%d_%d.csv"%(start_year,num_years,num_simulations,seed)
-dependency="dependent"
+dependency="dependent" #Wether water is sampled independently or not.
 try:
     case0_data=pd.read_csv(filename_case0)
 except FileNotFoundError:
