@@ -79,6 +79,12 @@ def plotwind():
     print("Wind overproduction: %.3f±%.3f"%(np.mean(german_wind_surplus),np.std(german_wind_surplus)))
     print("Wind send to Norway: %.3f±%.3f"%(np.mean(german_wind_toNorway),np.std(german_wind_toNorway)))
     print("Outlayer rate (above %.f TWh): %f"%(cutoff,over_10_rate))
+    outfile=open("../tables/%s_wind_overproduction_%d.csv"%(type,start_year),"w")
+
+    outfile.write("Wind overproduction, %.3f±%.3f\n"%(np.mean(german_wind_surplus),np.std(german_wind_surplus)))
+    outfile.write("Wind send to Norway: %.3f±%.3f\n"%(np.mean(german_wind_toNorway),np.std(german_wind_toNorway)))
+    outfile.write("Outlayer rate (in plot)(above %.f TWh): %f"%(cutoff,over_10_rate))
+    outfile.close()
     plt.title("Wind, n=%d, year=%d"%(num_simulations,start_year))
     kde = KernelDensity(kernel='exponential', bandwidth=0.05).fit(german_wind_surplus.reshape(-1,1))
     dens=np.exp(kde.score_samples(np.linspace(0,cutoff,1000).reshape(-1,1)))
@@ -148,17 +154,11 @@ def plotProductionDistr():
     for i in range(6):
         data.append(case0_data_2020[order[i]].to_numpy())
     data=np.array(data).T
-    #data=np.log(data)
     data_pandas=pd.DataFrame(data)
     data_pandas.columns=order
     print(data_pandas)
-    #print(data)
-    #plt.boxplot(data,vert=False)
-
     for i in range(6):
         sns.kdeplot(data[:,i],label=order[i],color=colors[i],ax=ax2)
-    #g=sns.pairplot(data_pandas,kind="kde")
-    #g.map_lower(sns.kdeplot, levels=4, color=".2")
     ax2.set_title("2020")
     ax2.legend()
     ax2.set_xlabel("TWh")
@@ -166,12 +166,9 @@ def plotProductionDistr():
     for i in range(6):
         data.append(case0_data_2022[order[i]].to_numpy())
     data=np.array(data).T
-    #data=np.log(data)
     data_pandas=pd.DataFrame(data)
     data_pandas.columns=order
     print(data_pandas)
-    #print(data)
-    #plt.boxplot(data,vert=False)
 
     for i in range(6):
         sns.kdeplot(data[:,i],label=order[i],color=colors[i],ax=ax1)
@@ -229,6 +226,14 @@ def plotMAIN():
     print("Norwegian surplus main: %.4f±%.4f"%(np.mean(nor_balance_case1),np.std(nor_balance_case1)))
     print("Norwegian export main: %.4f±%.4f"%(np.mean(exp_balance_case1),np.std(exp_balance_case1)))
     print("Difference in surplus beetween baseline and main: %.2f±%.2f"%(np.mean((nor_balance_case1-nor_balance_case0)),np.std((nor_balance_case1-nor_balance_case0))))
+    outfile=open("../tables/%s_maincase_%d.csv"%(type,start_year),"w")
+    outfile.write("Main case emissions, %.3f±%.3f\n"%(np.mean(CO2_hist_case1),np.std(CO2_hist_case1)))
+    outfile.write("Baseline emissions: %.3f±%.3f\n"%(np.mean(CO2_hist_case0),np.std(CO2_hist_case0)))
+    outfile.write("Main case emission reduction, %.3f±%.3f\n"%(np.mean(CO2_hist_case1-CO2_hist_case0),np.std(CO2_hist_case1-CO2_hist_case0)))
+    outfile.write("Main case net elecricity export, %.3f±%.3f\n"%(np.mean(exp_balance_case1),np.std(exp_balance_case1)))
+    outfile.write("Main case electricity surplus, %.3f±%.3f\n"%(np.mean(nor_balance_case1),np.std(nor_balance_case1)))
+    outfile.write("Baseline case electricity surplus, %.3f±%.3f\n"%(np.mean(nor_balance_case0),np.std(nor_balance_case0)))
+    outfile.close()
     ax1.set_xlabel("TWh")
     ax1.set_ylabel("Probability")
     ax1.legend(loc="upper left")
@@ -382,6 +387,16 @@ def plotPLATFORM():
     if savefile:
         plt.savefig("../graphs/%s_case1_case3_%d.pdf"%(type,start_year))
     plt.cla()#plt.show()
+    outfile=open("../tables/%s_platformcase_%d.csv"%(type,start_year),"w")
+    outfile.write("High platform case emissions, %.3f±%.3f\n"%(np.mean(CO2_hist_case3_1),np.std(CO2_hist_case3_1)))
+    outfile.write("Low platform case emissions, %.3f±%.3f\n"%(np.mean(CO2_bad_hist_case3_1),np.std(CO2_bad_hist_case3_1)))
+    outfile.write("High platform case emission reduction, %.3f±%.3f\n"%(np.mean((CO2_hist_case3_1-CO2_hist_case0)),np.std((CO2_hist_case3_1-CO2_hist_case0))))
+    outfile.write("Low platform case emission reduction, %.3f±%.3f\n"%(np.mean((CO2_bad_hist_case3_1-CO2_hist_case0)),np.std((CO2_bad_hist_case3_1-CO2_hist_case0))))
+    outfile.write("Platform case electricity surplus in NO, %.3f±%.3f\n"%(np.mean(nor_balance_case3_1),np.std(nor_balance_case3_1)))
+    outfile.write("Low Platform emission difference compared to main, %.3f±%.3f\n"%(np.mean((CO2_bad_hist_case3_1-CO2_hist_case1)),np.std((CO2_bad_hist_case3_1-CO2_hist_case1))))
+    outfile.write("High Platform emission difference compared to main, %.3f±%.3f\n"%(np.mean((CO2_hist_case3_1-CO2_hist_case1)),np.std((CO2_hist_case3_1-CO2_hist_case1))))
+    outfile.write("Platform case elctricity surplus difference compared to main, %.3f±%.3f\n"%(np.mean((nor_balance_case3_1-nor_balance_case1)),np.std((nor_balance_case3_1-nor_balance_case1))))
+    outfile.close()
     print("CO2 Reduction with Platform (low) compared to Main: %.2f±%.2f"%(np.mean((CO2_bad_hist_case3_1-CO2_hist_case1)),np.std((CO2_bad_hist_case3_1-CO2_hist_case1))))
     print("CO2 Reduction with Platform (high) compared to Main:  %.2f±%.2f"%(np.mean((CO2_hist_case3_1-CO2_hist_case1)),np.std((CO2_hist_case3_1-CO2_hist_case1))))
     print("Load Reduction with Platform compared to Main:  %.2f±%.2f"%(np.mean((nor_balance_case3_1-nor_balance_case1)),np.std((nor_balance_case3_1-nor_balance_case1))))
@@ -497,6 +512,16 @@ def plotDEPLATFORM():
     plt.tight_layout()
     if savefile:
         plt.savefig("../graphs/%s_case1_case3-3_%d.pdf"%(type,start_year))
+    outfile=open("../tables/%s_DE_and_platformcase_%d.csv"%(type,start_year),"w")
+    outfile.write("High DE+platform case emissions, %.3f±%.3f\n"%(np.mean(CO2_hist_case3_3),np.std(CO2_hist_case3_3)))
+    outfile.write("Low DE+platform case emissions, %.3f±%.3f\n"%(np.mean(CO2_bad_hist_case3_3),np.std(CO2_bad_hist_case3_3)))
+    outfile.write("High DE+platform case emission reduction, %.3f±%.3f\n"%(np.mean((CO2_hist_case3_3-CO2_hist_case0)),np.std((CO2_hist_case3_3-CO2_hist_case0))))
+    outfile.write("Low DE+platform case emission reduction, %.3f±%.3f\n"%(np.mean((CO2_bad_hist_case3_3-CO2_hist_case0)),np.std((CO2_bad_hist_case3_3-CO2_hist_case0))))
+    outfile.write("DE+Platform case electricity surplus in NO, %.3f±%.3f\n"%(np.mean((nor_balance_case3_3)),np.std((nor_balance_case3_3))))
+    outfile.write("Low DE+Platform emission difference compared to main, %.3f±%.3f\n"%(np.mean((CO2_bad_hist_case3_3-CO2_hist_case1)),np.std((CO2_bad_hist_case3_3-CO2_hist_case1))))
+    outfile.write("High DE+Platform emission difference compared to main, %.3f±%.3f\n"%(np.mean((CO2_hist_case3_3-CO2_hist_case1)),np.std((CO2_hist_case3_3-CO2_hist_case1))))
+    outfile.write("Platform case elctricity surplus difference compared to main, %.3f±%.3f\n"%(np.mean((nor_balance_case3_3-nor_balance_case1)),np.std((nor_balance_case3_3-nor_balance_case1))))
+    outfile.close()
     print("CO2 Reduction with Platform+DE (low) compared to Main: %.2f±%.2f"%(np.mean((CO2_bad_hist_case3_3-CO2_hist_case1)),np.std((CO2_bad_hist_case3_3-CO2_hist_case1))))
     print("CO2 Reduction with Platform+DE (high) compared to Main:  %.2f±%.2f"%(np.mean((CO2_hist_case3_3-CO2_hist_case1)),np.std((CO2_hist_case3_3-CO2_hist_case1))))
     print("Load Reduction with Platform+DE compared to Main:  %.2f±%.2f"%(np.mean((nor_balance_case3_3-nor_balance_case1)),np.std((nor_balance_case3_3-nor_balance_case1))))
