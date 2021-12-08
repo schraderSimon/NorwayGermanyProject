@@ -1,5 +1,4 @@
 import numpy as np
-import sys
 class VARSampler:
     def __init__(self,size,degree,coefficients,covariance_matrix,X_initial=0,seed=0):
         self.deg=degree

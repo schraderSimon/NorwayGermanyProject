@@ -209,8 +209,6 @@ print("Load Norway total:%f MWh"%(np.sum(load_NO)*steplength))
 """Read in water data"""
 water_data=pd.read_csv("../data/vann_norge_ny.csv",delimiter=";")
 water_data=water_data.set_index("maaned")
-oil_data=pd.read_csv("../data/olje.csv",delimiter=";")
-oil_data=oil_data.set_index("maaned")
 if begin_month<10:
     begin_string="%dM0%d"%(begin_year,begin_month)
 else:
@@ -220,10 +218,8 @@ if end_month<10:
 else:
     end_string="%dM%d"%(end_year,end_month)
 water_data=water_data[begin_string:end_string]
-oil_data=oil_data[begin_string:end_string]
 
 water_data.drop(water_data.tail(1).index,inplace=True)
-oil_data.drop(oil_data.tail(1).index,inplace=True)
 
 water_data["Elektrisk kraft"]+=np.mean(water_data["Elektrisk kraft"])*0.02
 
@@ -318,7 +314,7 @@ def plot_timeseries():
     plt.tight_layout()
     if logarithm:
         plt.savefig("../graphs/time_series_electricity_data_log.pdf")
-        plt.show()
+        plt.cla()#plt.show()
         plt.plot(time,np.exp(wind_NO),label="wind NO",color="cyan")
         plt.plot(time,np.exp(wind_NO_function(time)),"--",color="cyan")
         plt.plot(time,np.exp(wind_DE),label="wind DE",color="black")
@@ -339,7 +335,7 @@ def plot_timeseries():
         plt.savefig("../graphs/time_series_electricity_data.pdf")
     else:
         plt.savefig("../graphs/time_series_electricity_data.pdf")
-    plt.show()
+    plt.cla()#plt.show()
 plot_timeseries()
 
 def plot_residues():
@@ -368,7 +364,7 @@ def plot_residues():
         plt.savefig("../graphs/residue_timeseries_log.pdf")
     else:
         plt.savefig("../graphs/residue_timeseries.pdf")
-    plt.show()
+    plt.cla(); plt.clf()#plt.show();
 plot_residues()
 
 """Run tests"""
@@ -440,14 +436,29 @@ for i,residue in enumerate(residues):
         print("Null hypothesis can be rejected, p=%.4f,stat=%.4f, The difference is not normally distributed for %s"%(pval,statistic,order[i]))
 
 print("Trend coefficients")
+trendcoeff_file="../tables/trend_coefficients.csv"
+outfile=open(trendcoeff_file,"w")
+outfile.write("Series,slope a, intercept b\n")
 for i in range(len(order)):
     print("\\item %s: $T(t)=%ft+%f$ \\\\"%(order[i],trend_coefs[i][0],trend_coefs[i][1]))
+    outfile.write("%s,%f,%f\n"%(order[i],trend_coefs[i][0],trend_coefs[i][1]))
+outfile.close()
 print("Seasonal coefficients")
+seasoncoeff_file="../tables/season_coefficients.csv"
+outfile=open(seasoncoeff_file,"w")
+outfile.write("Series, a6, a5, a4, a3, a2, a1, a0\n")
+number_coefs=len(season_coefs[i])
+for i in range(len(order)):
+    outfile.write("%s"%order[i])
+    for j in range(0,number_coefs):
+        outfile.write(",%f"%season_coefs[i][j])
+    outfile.write("\n")
+outfile.close()
 print("Time series &",end="")
 for j in range(6,0,-1):
-        print(" $a_%d$& "%j,end="")
-print(" $a_0$ \\\\ \hline")
+    print(" $a_%d$& "%j,end="")
 
+print(" $a_0$ \\\\ \hline")
 for i in range(len(order)):
     print("%s & "%order[i],end="")
     number_coefs=len(season_coefs[i])
@@ -460,6 +471,9 @@ for i in range(len(order)):
     print("$%.2f\cdot10^{%d}$  \\\\ \\hline"%(season_coefs[i][-1]/10**(exponent),exponent))
     #print("$%.3E$ \\\\ \\hline"%season_coefs[i][-1])
 print("stationray coeff")
+ARcoeff_file="../tables/AR_coefficients.csv"
+outfile=open(ARcoeff_file,"w")
+outfile.write("Time series, phi1, phi2, phi3, sigmasquared\n")
 for i,arma_model in enumerate(arma_models):
     sigma=arma_model.params[-1]
     sigmaerr=arma_model.bse[-1]
@@ -475,8 +489,10 @@ for i,arma_model in enumerate(arma_models):
         phi3=arma_model.params[3]
         ephi3=arma_model.bse[3]
     print("%s & %f$\pm$%f & %f$\pm$%f & %f$\pm$%f & %f$\pm$ %f \\\\ \\hline"%(order[i],phi1,ephi1,phi2,ephi2,phi3,ephi3,sigma,sigmaerr))
+    outfile.write("%s, %f ± %f,%f ± %f,%f± %f, %f ± %f\n"%(order[i],phi1,ephi1,phi2,ephi2,phi3,ephi3,sigma,sigmaerr))
     if i==4:
         water_coefs=[phi1,phi2]
+outfile.close()
 new_data=[]
 for i in range(len(arma_models)):
     deterministic_y=deterministic_functions[i](times_future[i])
@@ -498,8 +514,8 @@ def plot_example():
     plt.ylabel("MW")
     plt.tight_layout()
     plt.savefig("../graphs/testing_predictions.pdf")
-    plt.show()
-#plot_example()
+    plt.cla()#plt.show()
+plot_example()
 def plot_correlations():
     """Plots the correlations of the fitted data"""
     fig, axs = plt.subplots(3, 2,figsize=(10,10))
@@ -541,8 +557,8 @@ def plot_correlations():
     axs[2,1].axhline(-1.96/np.sqrt(len(water_NO4_residue)))
     plt.tight_layout()
     plt.savefig("../graphs/residual_correlations.pdf")
-    plt.show()
-#plot_correlations()
+    plt.cla()#plt.show()
+plot_correlations()
 
 wind_and_sun=np.array([wind_NO_residue,wind_DE_residue,solar_DE_residue]).T
 load=np.array([load_NO_residue,load_DE_residue]).T
@@ -555,17 +571,7 @@ model_windsun = VAR(df_sunwind).fit(maxlags=1,ic="aic")
 
 model_load = VAR(df_load).fit(maxlags=3,ic="aic")
 model_NOloadwater = VAR(df_NOloadwater).fit(maxlags=2,ic="aic")
-"""
-for i in range(2):
-    statistic,pval=stats.ks_2samp(model_load.resid.to_numpy()[:,i]/np.std(model_load.resid.to_numpy()[:,i]),np.random.normal(0,1,len(model_load.resid.to_numpy()[:,i])))
-    plot_acf(model_load.resid.to_numpy()[:,i]/np.std(model_load.resid.to_numpy()[:,i]))
-    if pval>0.05:
-        print("Null hypothesis cannot be rejected, p=%.4f,stat=%.4f, The difference is normally distributed for %s"%(pval,statistic,order[i+3]))
-    else:
-        print("Null hypothesis can be rejected, p=%.4f,stat=%.4f, The difference is not normally distributed for %s"%(pval,statistic,order[i+3]))
-plt.show()
-sys.exit(1)
-"""
+
 def plot_predict_loads():
     matrix_1=model_load.coefs[0]
     matrix_2=model_load.coefs[1]
@@ -579,10 +585,14 @@ def plot_predict_loads():
     plt.plot((true_vals[:,0]),label="True NO load")
     #plt.plot((predict_vals[:,0]-true_vals[:,0]),label="difference")
     plt.legend()
-    plt.show()
+    plt.cla()#plt.show()
 plot_predict_loads()
+
 def print_latex_tables():
     print("Wind,Wind,Sun")
+    windwindsun_outfile=open("../tables/windNOwindDEsunDE_corr.txt","w")
+    windwindsun_outfile.write(str(model_windsun.summary()))
+    windwindsun_outfile.close()
     print(model_windsun.summary())
     print(model_windsun.sigma_u)
     print(model_windsun.coefs)
@@ -590,6 +600,9 @@ def print_latex_tables():
     latex_code = a2l.to_ltx(model_windsun.coefs[0], frmt = '{:6.6f}', arraytype = 'pmatrix')
     latex_code = a2l.to_ltx(model_windsun.sigma_u.to_numpy(), frmt = '{:6.6f}', arraytype = 'pmatrix')
     print("Load,Load")
+    load_outfile=open("../tables/loadNOloadDE_corr.txt","w")
+    load_outfile.write(str(model_load.summary()))
+    load_outfile.close()
     print(model_load.summary())
     print(model_load.sigma_u)
     print(model_load.coefs)
@@ -600,13 +613,17 @@ def print_latex_tables():
     latex_code = a2l.to_ltx(model_load.coefs[2], frmt = '{:6.6f}', arraytype = 'pmatrix')
     latex_code = a2l.to_ltx(model_load.sigma_u.to_numpy(), frmt = '{:6.6f}', arraytype = 'pmatrix')
     print("Load,Water")
+    loadwater_outfile=open("../tables/loadNOwaterNO.txt","w")
+    loadwater_outfile.write(str(model_NOloadwater.summary()))
+    loadwater_outfile.close()
     print(model_NOloadwater.summary())
     print(model_NOloadwater.sigma_u)
     print(model_NOloadwater.sigma_u)
     latex_code = a2l.to_ltx(model_NOloadwater.sigma_u.to_numpy(), frmt = '{:6.6f}', arraytype = 'pmatrix')
     latex_code = a2l.to_ltx(model_NOloadwater.sigma_u.to_numpy()/4, frmt = '{:6.6f}', arraytype = 'pmatrix')
 print_latex_tables()
-seed=np.random.randint(0,100000)
+print("latextables done")
+seed=int(sys.argv[1])
 
 wind_sun=VARSampler(3,1,model_windsun.coefs,model_windsun.sigma_u.to_numpy(),seed=seed+1)
 propagationSteps=wind_sun.sample_series((num_years+2)*52)
@@ -633,8 +650,8 @@ plt.legend(loc="upper left")
 plt.xlabel("week")
 plt.ylabel("MW")
 plt.tight_layout()
-plt.savefig("../graphs/testing_predictions_enhanced.pdf")
-plt.show()
+plt.cla()#plt.savefig("../graphs/testing_predictions_enhanced.pdf")
+#plt.show()
 
 trend_dict={}
 season_dict={}

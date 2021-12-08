@@ -19,7 +19,6 @@ periods=[52,52,52,52,13,52]
 colors=["cyan","black","green","red","blue","orange"]
 coefs=scipy.io.loadmat("../data/timeseries.mat")
 trend_coefs=pd.read_csv("../data/trends.csv")
-#trend_coefs["water NO"][0]=trend_coefs["load NO"][0]*4 #make water raise as high as production
 season_coefs=pd.read_csv("../data/season.csv")
 
 functions=[]
@@ -31,17 +30,19 @@ try:
     start_year=int(sys.argv[1])
     num_years=int(sys.argv[2])
     num_simulations=int(sys.argv[3])
-    if sys.argv[4]=="True":
+    if sys.argv[4]!="False":
         savefile=True
     else:
         savefile=False
+    seed=int(sys.argv[5])
+    type=sys.argv[6]
 except IndexError:
     start_year=2020
     num_years=1
     num_simulations=10000
     savefile=False
-seed=0
-
+    seed=0
+    type="None"
 filename_case0="../data/case0_%d_%d_%d_%d.csv"%(start_year,num_years,num_simulations,seed)
 filename_case0_2020="../data/case0_2020_%d_%d_%d.csv"%(num_years,num_simulations,seed)
 filename_case0_2022="../data/case0_2022_%d_%d_%d.csv"%(num_years,num_simulations,seed)
@@ -94,8 +95,8 @@ def plotwind():
     plt.legend()
     plt.tight_layout()
     if savefile:
-        plt.savefig("../graphs/wind_%d.pdf"%(start_year))
-    plt.show()
+        plt.savefig("../graphs/%s_wind_%d.pdf"%(type,start_year))
+    plt.cla()#plt.show()
 
 plt.rcParams.update({'font.size': 14})
 CO2_hist_case0=case0_data["CO2"].to_numpy()
@@ -141,7 +142,7 @@ num_weeks_NOtoDE=case1_data["Days NO to DE"].to_numpy()
 num_weeks_DEtoNO=case1_data["Days DE to NO"].to_numpy()
 num_weeks_NOtoDE_delay1=case1_delay1_data["Days NO to DE"].to_numpy()
 num_weeks_DEtoNO_delay1=case1_delay1_data["Days DE to NO"].to_numpy()
-def boxwhisker():
+def plotProductionDistr():
     fig, (ax2, ax1) = plt.subplots(2, 1, sharex=True, sharey=True,figsize=(12,6))
     data=[]
     for i in range(6):
@@ -174,16 +175,14 @@ def boxwhisker():
 
     for i in range(6):
         sns.kdeplot(data[:,i],label=order[i],color=colors[i],ax=ax1)
-    #g=sns.pairplot(data_pandas,kind="kde")
-    #g.map_lower(sns.kdeplot, levels=4, color=".2")
     ax1.set_title("2022")
     ax1.legend()
     ax1.set_xlabel("TWh")
     plt.tight_layout()
-    plt.savefig("../graphs/correlations_production.pdf")
-    plt.show()
+    plt.savefig("../graphs/%s_correlations_production.pdf"%type)
+    plt.cla()#plt.show()
 
-def plotstuff():
+def plotImportExportDist():
     plt.figure(figsize=(8,6))
     plt.hist(num_weeks_NOtoDE,density=True,alpha=0.1,bins=30,color="red")
     plt.hist(num_weeks_DEtoNO,density=True,alpha=0.1,bins=20,color="blue")
@@ -200,9 +199,9 @@ def plotstuff():
 
     plt.tight_layout()
     if savefile:
-        plt.savefig("../graphs/Num_weeks_%d.pdf"%(start_year))
-    plt.show()
-def plot1():
+        plt.savefig("../graphs/%s_Num_weeks_%d.pdf"%(type,start_year))
+    plt.cla()#plt.show()
+def plotMAIN():
     fig, (ax2, ax1) = plt.subplots(1, 2, sharex=False, sharey=False,figsize=(12,6))
 
     ax2.hist(CO2_hist_case0,density=True,alpha=0.1,bins=20,color="red")#,ax=ax2)
@@ -235,8 +234,8 @@ def plot1():
     ax1.legend(loc="upper left")
     plt.tight_layout()
     if savefile:
-        plt.savefig("../graphs/case0_case1_%d.pdf"%(start_year))
-    plt.show()
+        plt.savefig("../graphs/%s_case0_case1_%d.pdf"%(type,start_year))
+    plt.cla()#plt.show()
     maxfit=10000
     xaxis=np.linspace(np.min(nor_balance_case0),np.max(nor_balance_case0),1000)
     fig, (ax3,ax2, ax1) = plt.subplots(1, 3, sharex=False, sharey=False,figsize=(12,6))
@@ -276,8 +275,8 @@ def plot1():
     plt.tight_layout()
 
     if savefile:
-        plt.savefig("../graphs/case0_case1_confirm_%d.pdf"%(start_year))
-    plt.show()
+        plt.savefig("../graphs/%s_case0_case1_confirm_%d.pdf"%(type,start_year))
+    plt.cla()#plt.show()
 
 def plot2():
     fig, (ax2, ax1) = plt.subplots(1, 2, sharex=False, sharey=False,figsize=(12,6))
@@ -333,8 +332,8 @@ def plot2():
     plt.tight_layout()
 
     if savefile:
-        plt.savefig("../graphs/case0_case2_%d.pdf"%(start_year))
-    plt.show()
+        plt.savefig("../graphs/%s_case0_case2_%d.pdf"%(type,start_year))
+    plt.cla()#plt.show()
     maxfit=1000
     plt.hist(diff,alpha=0.1,color="red",label="1")
     plt.hist(np.random.normal(0,np.std(diff),len(diff)),alpha=0.1,color="blue",label="2")
@@ -348,10 +347,10 @@ def plot2():
     plt.legend()
     plt.tight_layout()
     if savefile:
-        plt.savefig("../graphs/case0_case2_confirm_%d.pdf"%(start_year))
-    plt.show()
+        plt.savefig("../graphs/%s_case0_case2_confirm_%d.pdf"%(type,start_year))
+    plt.cla()#plt.show()
 
-def plot31():
+def plotPLATFORM():
     fig, (ax2, ax1) = plt.subplots(1, 2, sharex=False, sharey=False,figsize=(12,6))
     ax2.hist(CO2_hist_case3_1,density=True,alpha=0.1,bins=20,color="red")
     ax2.hist(CO2_bad_hist_case3_1,density=True,alpha=0.1,bins=20,color="orange")
@@ -381,8 +380,8 @@ def plot31():
     ax1.legend(loc="lower left")
     plt.tight_layout()
     if savefile:
-        plt.savefig("../graphs/case1_case3_%d.pdf"%(start_year))
-    plt.show()
+        plt.savefig("../graphs/%s_case1_case3_%d.pdf"%(type,start_year))
+    plt.cla()#plt.show()
     print("CO2 Reduction with Platform (low) compared to Main: %.2f±%.2f"%(np.mean((CO2_bad_hist_case3_1-CO2_hist_case1)),np.std((CO2_bad_hist_case3_1-CO2_hist_case1))))
     print("CO2 Reduction with Platform (high) compared to Main:  %.2f±%.2f"%(np.mean((CO2_hist_case3_1-CO2_hist_case1)),np.std((CO2_hist_case3_1-CO2_hist_case1))))
     print("Load Reduction with Platform compared to Main:  %.2f±%.2f"%(np.mean((nor_balance_case3_1-nor_balance_case1)),np.std((nor_balance_case3_1-nor_balance_case1))))
@@ -412,7 +411,7 @@ def plot31():
     sns.kdeplot(CO2_hist_case1-CO2_bad_hist_case3_1,label="bad")
     sns.kdeplot(CO2_hist_case1-CO2_hist_case3_1,label="good")
     plt.legend()
-    plt.show()
+    plt.cla()#plt.show()
 
 
     print("Paired sample T-test that the main case has a HIGHER mean than the platform scenario")
@@ -461,14 +460,14 @@ def plot32():
     #ax1.set_xlim(-5,20)
     plt.tight_layout()
     if savefile:
-        plt.savefig("../graphs/case1_case3-2_%d.pdf"%(start_year))
+        plt.savefig("../graphs/%s_case1_case3-2_%d.pdf"%(type,start_year))
     print("CO2 Reduction with Case 3-2 (low) compared to Platform (low):  %.2f±%.2f"%(np.mean((CO2_bad_hist_case3_2-CO2_bad_hist_case3_1)),np.std((CO2_bad_hist_case3_2-CO2_bad_hist_case3_1))))
     print("CO2 Reduction with Case 3-2 (high) compared to Platform (high):  %.2f±%.2f"%(np.mean((CO2_hist_case3_2-CO2_hist_case3_1)),np.std((CO2_hist_case3_2-CO2_hist_case3_1))))
     print("Load Reduction with Case 3-2 compared to Platform: %.2f±%.2f"%(np.mean((nor_balance_case3_2-nor_balance_case3_1)),np.std((nor_balance_case3_2-nor_balance_case3_1))))
 
-    plt.show()
+    plt.cla()#plt.show()
 
-def plot33():
+def plotDEPLATFORM():
     fig, (ax2, ax1) = plt.subplots(1, 2, sharex=False, sharey=False,figsize=(12,6))
     #ax2.hist(CO2_hist_case3_1,density=True,alpha=0.1,bins=20,color="red")
     #ax2.hist(CO2_bad_hist_case3_1,density=True,alpha=0.1,bins=20,color="orange")
@@ -497,7 +496,7 @@ def plot33():
     #ax1.set_xlim(-5,20)
     plt.tight_layout()
     if savefile:
-        plt.savefig("../graphs/case1_case3-3_%d.pdf"%(start_year))
+        plt.savefig("../graphs/%s_case1_case3-3_%d.pdf"%(type,start_year))
     print("CO2 Reduction with Platform+DE (low) compared to Main: %.2f±%.2f"%(np.mean((CO2_bad_hist_case3_3-CO2_hist_case1)),np.std((CO2_bad_hist_case3_3-CO2_hist_case1))))
     print("CO2 Reduction with Platform+DE (high) compared to Main:  %.2f±%.2f"%(np.mean((CO2_hist_case3_3-CO2_hist_case1)),np.std((CO2_hist_case3_3-CO2_hist_case1))))
     print("Load Reduction with Platform+DE compared to Main:  %.2f±%.2f"%(np.mean((nor_balance_case3_3-nor_balance_case1)),np.std((nor_balance_case3_3-nor_balance_case1))))
@@ -507,7 +506,7 @@ def plot33():
     print("Pltform+DE low: %.2f±%.2f"%(np.mean(CO2_bad_hist_case3_3),np.std(CO2_bad_hist_case3_3)))
     print("Pltform+DE high: %.2f±%.2f"%(np.mean(CO2_hist_case3_3),np.std(CO2_hist_case3_3)))
     print("Norwegian surplus Platform+DE: %.4f±%.4f"%(np.mean(nor_balance_case3_3),np.std(nor_balance_case3_3)))
-    plt.show()
+    plt.cla()#plt.show()
 
     fig, (ax2, ax1,ax3) = plt.subplots(1, 3, sharex=False, sharey=False,figsize=(12,6))
     sns.kdeplot(toGermany_case3_3,x=r"Million tons CO$_2$",label="Sent to Germany",color="red",ax=ax2)
@@ -532,9 +531,9 @@ def plot33():
     ax3.set_xlim([(100-np.max(percentys)),np.max(percentys)])
     ax3.set_xlabel('% sent to Germany')
     if savefile:
-        plt.savefig("../graphs/case33_afteranalysis%d.pdf"%(start_year))
+        plt.savefig("../graphs/%s_case33_afteranalysis%d.pdf"%(type,start_year))
     plt.tight_layout()
-    plt.show()
+    plt.cla()#plt.show()
 
 
 def plot4():
@@ -560,10 +559,10 @@ def plot4():
     ax1.legend(loc="upper right")
     plt.tight_layout()
     if savefile:
-        plt.savefig("../graphs/case4_%d.pdf"%(start_year))
+        plt.savefig("../graphs/%s_case4_%d.pdf"%(type,start_year))
     print("CO2 Reduction with Case 4 (low) compared to baseline:  %.2f±%.2f"%(np.mean((CO2_bad_hist_case4-CO2_hist_case0_nowind)),np.std((CO2_bad_hist_case4-CO2_hist_case0_nowind))))
     print("CO2 Reduction with Case 4 (high) compared to baseline:  %.2f±%.2f"%(np.mean((CO2_hist_case4-CO2_hist_case0_nowind)),np.std((CO2_hist_case4-CO2_hist_case0_nowind))))
-    plt.show()
+    plt.cla()#plt.show()
 def plot1_delay1():
     fig, (ax2, ax1) = plt.subplots(1, 2, sharex=False, sharey=False,figsize=(12,6))
 
@@ -603,18 +602,14 @@ def plot1_delay1():
     ax1.legend(loc="upper left")
     plt.tight_layout()
     if savefile:
-        plt.savefig("../graphs/case0_case1_delay%d.pdf"%(start_year))
-    plt.show()
+        plt.savefig("../graphs/%s_case0_case1_delay%d.pdf"%(type,start_year))
+    plt.cla()#plt.show()
 plotwind()
-#boxwhisker()
-#plotstuff()
-#print("Main")
-plot1()
-#plot2()
-#print("Platform")
-#plot31()
-#plot32()
-#print("Platform+Germany")
-#plot33()
-#plot4()
-#plot1_delay1()
+plotProductionDistr()
+plotImportExportDist()
+plotMAIN()
+#plot2() Not used in article
+plotPLATFORM()
+#plot32() Not used in article
+plotDEPLATFORM()
+#plot4() Not used in article
