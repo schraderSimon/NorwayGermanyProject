@@ -13,7 +13,7 @@ import pingouin
 
 cmap = matplotlib.cm.get_cmap('PuRd')
 background=cmap(0)
-plt.rcParams.update({'font.size': 14, 'legend.labelspacing':0.1})
+plt.rcParams.update({'font.size': 16, 'legend.labelspacing':0.1})
 order=["wind NO","wind DE","load NO","load DE","water NO","solar DE"]
 labels=["wind NO","wind DE","load NO","load DE","water NO","PV DE"]
 periods=[52,52,52,52,13,52]
@@ -69,9 +69,9 @@ case3_3_data=pd.read_csv(filename_case3_3)
 case4_data=pd.read_csv(filename_case4)
 german_wind_surplus=case0_data["German wind surplus"].to_numpy()
 german_wind_toNorway=case0_data["German wind to Norway"].to_numpy()
+plt.rcParams.update({'font.size': 20, 'legend.labelspacing':0.1, "legend.handletextpad":0.1})
 
 def plotwind():
-    plt.rcParams.update({'font.size': 22, 'legend.labelspacing':0.1, "legend.handletextpad":0.1})
     if start_year==2020:
         cutoff=5
     elif start_year==2022:
@@ -110,7 +110,6 @@ def plotwind():
     if savefile:
         plt.savefig("../graphs/%s_wind_%d.pdf"%(type,start_year))
     plt.cla()#plt.show()
-    plt.rcParams.update({'font.size': 14, 'legend.labelspacing':0.1, "legend.handletextpad":0.1})
 
 CO2_hist_case0=case0_data["CO2"].to_numpy()
 CO2_hist_case0_nowind=case0_data["CO2 nowind"].to_numpy()

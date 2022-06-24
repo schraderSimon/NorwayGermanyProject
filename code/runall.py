@@ -18,6 +18,7 @@ for filename in filenames:
     output, error = process.communicate()
 # Step 2: Create data using the approach from the main text.
 delcases("../data",num_MC,years)
+sys.exit(1)
 for year in years:
     bashCommand="python3 run_simulations.py %d 1 %d %d 0 dependent"%(year,num_MC,rngseed)
     process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE,shell=False)

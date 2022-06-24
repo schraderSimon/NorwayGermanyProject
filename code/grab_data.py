@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-plt.rcParams.update({'font.size': 12})
+plt.rcParams.update({'font.size': 16})
 
 import sys
 import datetime
@@ -21,7 +21,7 @@ from SamplerSystem import *
 from helper_functions import *
 from scipy.optimize import curve_fit
 warnings.filterwarnings("ignore")
-plt.rcParams.update({'font.size': 12, 'legend.labelspacing':0.2})
+plt.rcParams.update({'font.size': 20, 'legend.labelspacing':0.2})
 
 def average_array(arr,length):
     """Takes an array and returns a new array of length len(arr)/length,
@@ -300,7 +300,7 @@ def plot_timeseries():
     plt.plot(time,load_NO_function(time),"--",color="green")
     plt.plot(time,load_DE,label="load DE",color="red")
     plt.plot(time,load_DE_function(time),"--",color="red")
-    plt.plot(time,solar_DE,label="solar DE",color="orange")
+    plt.plot(time,solar_DE,label="PV DE",color="orange")
     plt.plot(time,solar_DE_function(time),"--",color="orange")
     plt.plot(time_month*4,water_NO_4week,label="water NO",color="blue")
     plt.plot(time,water_NO4_function(time),"--",color="blue")
@@ -314,7 +314,7 @@ def plot_timeseries():
     plt.tight_layout()
     if logarithm:
         plt.savefig("../graphs/time_series_electricity_data_log.pdf")
-        plt.cla()#plt.show()
+        plt.cla();plt.clf()
         plt.plot(time,np.exp(wind_NO),label="wind NO",color="cyan")
         plt.plot(time,np.exp(wind_NO_function(time)),"--",color="cyan")
         plt.plot(time,np.exp(wind_DE),label="wind DE",color="black")
@@ -323,7 +323,7 @@ def plot_timeseries():
         plt.plot(time,np.exp(load_NO_function(time)),"--",color="green")
         plt.plot(time,np.exp(load_DE),label="load DE",color="red")
         plt.plot(time,np.exp(load_DE_function(time)),"--",color="red")
-        plt.plot(time,np.exp(solar_DE),label="solar DE",color="orange")
+        plt.plot(time,np.exp(solar_DE),label="PV DE",color="orange")
         plt.plot(time,np.exp(solar_DE_function(time)),"--",color="orange")
         plt.plot(time_month*4,np.exp(water_NO_4week),label="water NO",color="blue")
         plt.plot(time,np.exp(water_NO4_function(time)),"--",color="blue")
@@ -335,7 +335,7 @@ def plot_timeseries():
         plt.savefig("../graphs/time_series_electricity_data.pdf")
     else:
         plt.savefig("../graphs/time_series_electricity_data.pdf")
-    plt.cla()#plt.show()
+    plt.cla();plt.clf()
 plot_timeseries()
 
 def plot_residues():
@@ -355,8 +355,8 @@ def plot_residues():
     axs[1].legend()
 
     axs[2].plot(time_month*4,water_NO4_residue,"o",label="water NO")
-    axs[2].plot(time,solar_DE_residue,label="solar DE")
-    axs[2].set_title('Water/solar')
+    axs[2].plot(time,solar_DE_residue,label="PV DE")
+    axs[2].set_title('Water and PV')
     axs[2].legend()
 
     plt.tight_layout()
@@ -421,6 +421,8 @@ for i,residue in enumerate(residues):
         arma_model_degree=ar_select_order(residue,maxlag=maxlag).ar_lags[-1]
 
     except IndexError: #If the array is empty, no AR is suggested
+        arma_model_degree=0
+    except TypeError: #If the array is empty, no AR is suggested
         arma_model_degree=0
     print("%s is a %d process"%(order[i],arma_model_degree))
     arma_models.append(ARIMA(residue,order=(arma_model_degree,0,0)).fit())
@@ -514,7 +516,7 @@ def plot_example():
     plt.ylabel("MW")
     plt.tight_layout()
     plt.savefig("../graphs/testing_predictions.pdf")
-    plt.cla()#plt.show()
+    plt.cla();plt.clf()
 plot_example()
 def plot_correlations():
     """Plots the correlations of the fitted data"""
@@ -536,12 +538,12 @@ def plot_correlations():
     axs[0,1].axhline(+1.96/np.sqrt(len(wind_DE_residue)))
     axs[0,1].axhline(-1.96/np.sqrt(len(wind_DE_residue)))
 
-    axs[1,0].set_title("DE wind, DE sun")
+    axs[1,0].set_title("DE wind, DE PV")
     axs[1,0].xcorr(arma_models[1].resid,arma_models[5].resid,maxlags=3,color="orange")
     axs[1,0].axhline(+1.96/np.sqrt(len(wind_DE_residue)))
     axs[1,0].axhline(-1.96/np.sqrt(len(wind_DE_residue)))
 
-    axs[1,1].set_title("NO wind, DE sun")
+    axs[1,1].set_title("NO wind, DE PV")
     axs[1,1].xcorr(arma_models[0].resid,arma_models[5].resid,maxlags=3,color="orange")
     axs[1,1].axhline(+1.96/np.sqrt(len(wind_DE_residue)))
     axs[1,1].axhline(-1.96/np.sqrt(len(wind_DE_residue)))
@@ -557,7 +559,7 @@ def plot_correlations():
     axs[2,1].axhline(-1.96/np.sqrt(len(water_NO4_residue)))
     plt.tight_layout()
     plt.savefig("../graphs/residual_correlations.pdf")
-    plt.cla()#plt.show()
+    plt.cla();plt.clf()
 plot_correlations()
 
 wind_and_sun=np.array([wind_NO_residue,wind_DE_residue,solar_DE_residue]).T
@@ -585,7 +587,7 @@ def plot_predict_loads():
     plt.plot((true_vals[:,0]),label="True NO load")
     #plt.plot((predict_vals[:,0]-true_vals[:,0]),label="difference")
     plt.legend()
-    plt.cla()#plt.show()
+    plt.cla();plt.clf()
 plot_predict_loads()
 
 def print_latex_tables():
@@ -623,8 +625,10 @@ def print_latex_tables():
     latex_code = a2l.to_ltx(model_NOloadwater.sigma_u.to_numpy()/4, frmt = '{:6.6f}', arraytype = 'pmatrix')
 print_latex_tables()
 print("latextables done")
-seed=int(sys.argv[1])
-
+try:
+    seed=int(sys.argv[1])
+except:
+    seed=34 #Used in the plot of the simulated system
 wind_sun=VARSampler(3,1,model_windsun.coefs,model_windsun.sigma_u.to_numpy(),seed=seed+1)
 propagationSteps=wind_sun.sample_series((num_years+2)*52)
 time=np.linspace(1,(num_years+2)*52,(num_years+2)*52)
@@ -639,7 +643,7 @@ water_test_withoutfunc=water_sampler(loadingstrandom[:,0],model_NOloadwater.sigm
 water_NO_test=np.exp(water_test_withoutfunc+water_NO_function(time))
 plt.plot(wind_NO_test,label="wind NO",color=colors[0])
 plt.plot(wind_DE_test,label="wind DE",color=colors[1])
-plt.plot(sun_DE_test,label="sun DE",color=colors[5])
+plt.plot(sun_DE_test,label="PV DE",color=colors[5])
 plt.plot(load_NO_test,label="load NO",color=colors[2])
 plt.plot(load_DE_test,label="load DE",color=colors[3])
 plt.plot(water_NO_test,label="water NO",color=colors[4])
@@ -650,9 +654,10 @@ plt.legend(loc="upper left")
 plt.xlabel("week")
 plt.ylabel("MW")
 plt.tight_layout()
-plt.cla()#plt.savefig("../graphs/testing_predictions_enhanced.pdf")
+plt.savefig("../graphs/testing_predictions_enhanced.pdf")
 #plt.show()
 
+plt.cla();plt.clf()
 trend_dict={}
 season_dict={}
 max_season=len(max(season_coefs, key=len))

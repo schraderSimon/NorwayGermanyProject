@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-plt.rcParams.update({'font.size': 12})
+plt.rcParams.update({'font.size': 16})
 
 import sys
 import datetime
@@ -304,7 +304,7 @@ def plot_timeseries():
     plt.plot(time,load_NO_function(time),"--",color="green")
     plt.plot(time,load_DE,label="load DE",color="red")
     plt.plot(time,load_DE_function(time),"--",color="red")
-    plt.plot(time,solar_DE,label="solar DE",color="orange")
+    plt.plot(time,solar_DE,label="PV DE",color="orange")
     plt.plot(time,solar_DE_function(time),"--",color="orange")
     plt.plot(time_month*4,water_NO_4week,label="water NO",color="blue")
     plt.plot(time,water_NO4_function(time),"--",color="blue")
@@ -327,7 +327,7 @@ def plot_timeseries():
         plt.plot(time,np.exp(load_NO_function(time)),"--",color="green")
         plt.plot(time,np.exp(load_DE),label="load DE",color="red")
         plt.plot(time,np.exp(load_DE_function(time)),"--",color="red")
-        plt.plot(time,np.exp(solar_DE),label="solar DE",color="orange")
+        plt.plot(time,np.exp(solar_DE),label="PV DE",color="orange")
         plt.plot(time,np.exp(solar_DE_function(time)),"--",color="orange")
         plt.plot(time_month*4,np.exp(water_NO_4week),label="water NO",color="blue")
         plt.plot(time,np.exp(water_NO4_function(time)),"--",color="blue")
@@ -358,8 +358,8 @@ def plot_residues():
     axs[1].legend()
 
     axs[2].plot(time_month*4,water_NO4_residue,"o",label="water NO")
-    axs[2].plot(time,solar_DE_residue,label="solar DE")
-    axs[2].set_title('Water/solar')
+    axs[2].plot(time,solar_DE_residue,label="PV DE")
+    axs[2].set_title('Water and PV')
     axs[2].legend()
 
     plt.tight_layout()
@@ -423,6 +423,8 @@ for i,residue in enumerate(residues):
         arma_model_degree=ar_select_order(residue,maxlag=maxlag).ar_lags[-1]
 
     except IndexError:
+        arma_model_degree=0
+    except TypeError:
         arma_model_degree=0
     print("%s is a %d process"%(order[i],arma_model_degree))
     arma_models.append(ARIMA(residue,order=(arma_model_degree,0,0)).fit())
@@ -533,12 +535,12 @@ def plot_correlations():
     axs[0,1].axhline(+1.96/np.sqrt(len(wind_DE_residue)))
     axs[0,1].axhline(-1.96/np.sqrt(len(wind_DE_residue)))
 
-    axs[1,0].set_title("DE wind, DE sun")
+    axs[1,0].set_title("DE wind, DE PV")
     axs[1,0].xcorr(arma_models[1].resid,arma_models[5].resid,maxlags=3,color="orange")
     axs[1,0].axhline(+1.96/np.sqrt(len(wind_DE_residue)))
     axs[1,0].axhline(-1.96/np.sqrt(len(wind_DE_residue)))
 
-    axs[1,1].set_title("NO wind, DE sun")
+    axs[1,1].set_title("NO wind, DE PV")
     axs[1,1].xcorr(arma_models[0].resid,arma_models[5].resid,maxlags=3,color="orange")
     axs[1,1].axhline(+1.96/np.sqrt(len(wind_DE_residue)))
     axs[1,1].axhline(-1.96/np.sqrt(len(wind_DE_residue)))
