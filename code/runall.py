@@ -23,7 +23,7 @@ for year in years:
     process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE,shell=False)
     output, error = process.communicate()
 for year in years:
-    bashCommand="python3 plot_simulations.py %d 1 %d True %d default"%(year,num_MC,rngseed)
+    bashCommand="python3 plot_simulations_small.py %d 1 %d True %d default"%(year,num_MC,rngseed)
     process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE,shell=False)
     output, error = process.communicate()
 # Step 3: Create data using the sinusoidal deseasoning (A.2)
@@ -33,7 +33,7 @@ for year in years:
     process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE,shell=False)
     output, error = process.communicate()
 for year in years:
-    bashCommand="python3 plot_simulations.py %d 1 %d True %d A2"%(year,num_MC,rngseed)
+    bashCommand="python3 plot_simulations_small.py %d 1 %d True %d A2"%(year,num_MC,rngseed)
     process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE,shell=False)
     output, error = process.communicate()
 # Step 4: Create data using different water sampling (A.1)
@@ -43,6 +43,6 @@ for year in years:
     process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE,shell=False)
     output, error = process.communicate()
 for year in years:
-    bashCommand="python3 plot_simulations.py %d 1 %d True %d A1"%(year,num_MC,rngseed)
+    bashCommand="python3 plot_simulations_small.py %d 1 %d True %d A1"%(year,num_MC,rngseed)
     process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE,shell=False)
     output, error = process.communicate()
